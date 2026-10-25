@@ -1,0 +1,385 @@
+/*
+ * vanilla-yamleditor styles. Theme it through the --vye-* variables, on .vye
+ * or any ancestor; .vye-theme-dark switches to the dark set.
+ */
+.vye {
+  --vye-font: inherit;
+  --vye-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --vye-font-size: 0.875rem;
+  --vye-bg: #ffffff;
+  --vye-fg: #1f2937;
+  --vye-muted: #6b7280;
+  --vye-border: #d1d5db;
+  --vye-panel: #f9fafb;
+  --vye-accent: #3b82f6;
+  --vye-accent-fg: #ffffff;
+  --vye-error: #dc2626;
+  --vye-error-bg: #fef2f2;
+  --vye-warning: #d97706;
+  --vye-input-bg: #ffffff;
+  --vye-radius: 6px;
+  --vye-gutter-bg: #f9fafb;
+  --vye-active-line: rgba(59, 130, 246, 0.06);
+  --vye-tok-key: #0f5bb5;
+  --vye-tok-string: #0a7d43;
+  --vye-tok-number: #b45309;
+  --vye-tok-bool: #9333ea;
+  --vye-tok-comment: #6b7280;
+  --vye-tok-meta: #be185d;
+
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  border: 1px solid var(--vye-border);
+  border-radius: var(--vye-radius);
+  background: var(--vye-bg);
+  color: var(--vye-fg);
+  font-family: var(--vye-font);
+  font-size: var(--vye-font-size);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.vye-theme-dark .vye,
+.vye.vye-theme-dark {
+  --vye-bg: #111827;
+  --vye-fg: #e5e7eb;
+  --vye-muted: #9ca3af;
+  --vye-border: #374151;
+  --vye-panel: #1f2937;
+  --vye-error: #f87171;
+  --vye-error-bg: rgba(248, 113, 113, 0.12);
+  --vye-warning: #fbbf24;
+  --vye-input-bg: #0b1220;
+  --vye-gutter-bg: #1f2937;
+  --vye-active-line: rgba(147, 197, 253, 0.07);
+  --vye-tok-key: #93c5fd;
+  --vye-tok-string: #86efac;
+  --vye-tok-number: #fcd34d;
+  --vye-tok-bool: #d8b4fe;
+  --vye-tok-comment: #9ca3af;
+  --vye-tok-meta: #f9a8d4;
+}
+
+.vye *,
+.vye *::before,
+.vye *::after {
+  box-sizing: border-box;
+}
+
+/* Menu */
+.vye-menu {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--vye-border);
+  background: var(--vye-panel);
+}
+
+.vye-menu[hidden] {
+  display: none;
+}
+
+.vye-modes {
+  display: inline-flex;
+  border: 1px solid var(--vye-border);
+  border-radius: var(--vye-radius);
+  overflow: hidden;
+}
+
+.vye-tab {
+  padding: 0.2rem 0.75rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.vye-tab + .vye-tab {
+  border-left: 1px solid var(--vye-border);
+}
+
+.vye-tab-active {
+  background: var(--vye-accent);
+  color: var(--vye-accent-fg);
+}
+
+.vye-tab[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.vye-status {
+  color: var(--vye-muted);
+  font-size: 0.8125rem;
+}
+
+.vye-status-error {
+  color: var(--vye-error);
+}
+
+/* Body */
+.vye-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.vye-text,
+.vye-tree-host {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.vye-text[hidden],
+.vye-tree-host[hidden] {
+  display: none;
+}
+
+/* Text mode (CodeMirror) */
+.vye .cm-editor {
+  height: 100%;
+  background: var(--vye-bg);
+  color: var(--vye-fg);
+  font-family: var(--vye-mono);
+}
+
+.vye .cm-editor.cm-focused {
+  outline: none;
+}
+
+.vye .cm-scroller {
+  font-family: var(--vye-mono);
+  line-height: 1.5;
+}
+
+.vye .cm-gutters {
+  background: var(--vye-gutter-bg);
+  border-right: 1px solid var(--vye-border);
+  color: var(--vye-muted);
+}
+
+.vye .cm-activeLine {
+  background: var(--vye-active-line);
+}
+
+.vye .cm-activeLineGutter {
+  background: var(--vye-active-line);
+}
+
+.vye .cm-content {
+  caret-color: var(--vye-fg);
+}
+
+.vye .cm-tooltip {
+  background: var(--vye-bg);
+  color: var(--vye-fg);
+  border: 1px solid var(--vye-border);
+}
+
+.vye .tok-propertyName,
+.vye .tok-definition {
+  color: var(--vye-tok-key);
+}
+
+.vye .tok-string,
+.vye .tok-content {
+  color: var(--vye-tok-string);
+}
+
+.vye .tok-number {
+  color: var(--vye-tok-number);
+}
+
+.vye .tok-bool,
+.vye .tok-null,
+.vye .tok-atom,
+.vye .tok-keyword {
+  color: var(--vye-tok-bool);
+}
+
+.vye .tok-comment {
+  color: var(--vye-tok-comment);
+  font-style: italic;
+}
+
+.vye .tok-meta,
+.vye .tok-labelName,
+.vye .tok-typeName {
+  color: var(--vye-tok-meta);
+}
+
+/* Tree mode */
+.vye-tree {
+  padding: 0.5rem 0.75rem;
+}
+
+.vye-children {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.vye-entry > .vye-children {
+  margin: 0.25rem 0 0.25rem 0.9rem;
+  padding-left: 0.6rem;
+  border-left: 1px solid var(--vye-border);
+}
+
+.vye-entry-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2rem;
+}
+
+.vye-toggle {
+  width: 1.25rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--vye-muted);
+  cursor: pointer;
+  font: inherit;
+}
+
+.vye-key {
+  flex: 0 0 auto;
+  min-width: 8rem;
+  font-weight: 600;
+}
+
+.vye-index {
+  min-width: 2rem;
+  color: var(--vye-muted);
+  font-weight: 500;
+}
+
+.vye-key-input,
+.vye-new-key,
+.vye-input {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--vye-border);
+  border-radius: var(--vye-radius);
+  background: var(--vye-input-bg);
+  color: inherit;
+  font: inherit;
+}
+
+.vye-key-input {
+  width: 10rem;
+}
+
+.vye-string {
+  flex: 1;
+  min-width: 6rem;
+}
+
+.vye-number {
+  width: 8rem;
+}
+
+.vye-textarea {
+  flex: 1;
+  min-width: 10rem;
+  font-family: var(--vye-mono);
+  resize: vertical;
+}
+
+.vye-checkbox {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--vye-accent);
+}
+
+.vye-input:focus,
+.vye-key-input:focus,
+.vye-new-key:focus {
+  outline: 2px solid var(--vye-accent);
+  outline-offset: -1px;
+}
+
+.vye-input:disabled {
+  opacity: 0.7;
+}
+
+.vye-count,
+.vye-alias,
+.vye-empty {
+  color: var(--vye-muted);
+}
+
+.vye-alias {
+  font-family: var(--vye-mono);
+}
+
+.vye-remove {
+  margin-left: auto;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--vye-muted);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.vye-remove:hover,
+.vye-remove:focus-visible {
+  background: var(--vye-error-bg);
+  color: var(--vye-error);
+}
+
+.vye-hint {
+  margin: 0 0 0.25rem 1.75rem;
+  color: var(--vye-muted);
+  font-size: 0.8125rem;
+  white-space: pre-line;
+}
+
+.vye-problem {
+  margin: 0 0 0.25rem 1.75rem;
+  color: var(--vye-error);
+  font-size: 0.8125rem;
+}
+
+.vye-invalid > .vye-entry-head .vye-input,
+.vye-invalid > .vye-entry-head .vye-key-input {
+  border-color: var(--vye-error);
+}
+
+.vye-add-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.25rem 0 0.25rem 1.75rem;
+}
+
+.vye-add {
+  padding: 0.15rem 0.6rem;
+  border: 1px dashed var(--vye-border);
+  border-radius: var(--vye-radius);
+  background: transparent;
+  color: var(--vye-accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8125rem;
+}
+
+.vye-add:hover,
+.vye-add:focus-visible {
+  border-color: var(--vye-accent);
+}
+
+.vye-new-key {
+  width: 9rem;
+  font-size: 0.8125rem;
+}
