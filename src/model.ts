@@ -62,6 +62,17 @@ export function parseYaml(text: string): ParsedYaml {
   return { text, doc, errors, value }
 }
 
+/** A path from outside: an array, or a string such as `a.b[0].c` or `/a/b/0`. */
+export function toPath(path: unknown): YamlPath {
+  if (Array.isArray(path)) return path.map((s) => (typeof s === 'number' ? s : /^\d+$/.test(String(s)) ? Number(s) : String(s)))
+  if (typeof path !== 'string' || !path) return []
+  return path
+    .replace(/\[(\d+)\]/g, '.$1')
+    .split(/[./]/)
+    .filter(Boolean)
+    .map((s) => (/^\d+$/.test(s) ? Number(s) : s))
+}
+
 /** A path as a stable string: `filters.paris.tags[0]`. */
 export function pathKey(path: YamlPath): string {
   return path.reduce<string>((acc, seg) => (typeof seg === 'number' ? `${acc}[${seg}]` : acc ? `${acc}.${seg}` : String(seg)), '')

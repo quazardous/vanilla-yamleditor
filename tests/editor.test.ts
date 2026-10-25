@@ -146,3 +146,14 @@ describe('createYamlEditor', () => {
     expect(target.querySelector('.vye-tab-text')!.textContent).toBe('Texte')
   })
 })
+
+describe('problem paths', () => {
+  it('accepts string paths, and puts a missing entry on its parent', () => {
+    const target = document.createElement('div')
+    document.body.appendChild(target)
+    editor = createYamlEditor({ target, props: { content: CONTENT, problems: [{ path: 'stores.paris.skus[0]' as never, message: 'needs a SKU' }, { path: '' as never, message: 'whole file' }] } })
+    expect(target.querySelector('[data-path="stores.paris"] .vye-problem')!.textContent).toBe('skus[0]: needs a SKU')
+    expect(target.querySelector('.vye-problem-root')!.textContent).toBe('whole file')
+    expect(editor.status().problems[0].path).toEqual(['stores', 'paris', 'skus', 0])
+  })
+})

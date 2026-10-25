@@ -69,6 +69,8 @@ export class TreeMode {
     const focus = active && this.root.contains(active) ? { path: active.closest<HTMLElement>('[data-path]')?.dataset.path, role: active.dataset.role } : null
 
     this.root.replaceChildren()
+    // Problems on the document itself
+    for (const message of ctx.problems.get('') ?? []) this.root.appendChild(el('div', 'vye-problem vye-problem-root', { role: 'alert' }, message))
     const value = ctx.parsed.value
     if (isCollection(value)) {
       this.root.appendChild(this.renderChildren(value, [], schemaAt(ctx.schema, [])))

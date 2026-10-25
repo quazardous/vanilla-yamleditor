@@ -43,6 +43,7 @@ export interface JsonSchema {
 }
 
 export interface YamlProblem {
+  /** Where: an array, or a string such as `a.b[0]` (normalised by the editor). */
   path: YamlPath
   message: string
   severity?: 'error' | 'warning'

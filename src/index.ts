@@ -29,6 +29,7 @@ export {
   rangeAt,
   renameKey,
   setValue,
+  toPath,
   valueAt,
   YamlEditError,
   type ParsedYaml,

@@ -5,7 +5,7 @@
  * the tree mode edits it through model.ts patches. Switching to the tree is
  * refused while the text has syntax errors, which then show at their line.
  */
-import { YamlEditError, parseYaml, pathKey, rangeAt, type ParsedYaml, type YamlPath, type YamlSyntaxError } from './model'
+import { YamlEditError, locate, parseYaml, pathKey, rangeAt, toPath, type ParsedYaml, type YamlPath, type YamlSyntaxError } from './model'
 import { defaultSchemaMessages, validate, type JsonSchema, type SchemaMessages, type YamlProblem } from './schema'
 import { TextMode, type TextMarker } from './text-mode'
 import { TreeMode, type TreeLabels } from './tree-mode'
@@ -141,17 +141,19 @@ export function createYamlEditor({ target, props = {} }: { target: HTMLElement; 
   const treeMode = new TreeMode(treeHost)
 
   function computeProblems(): YamlProblem[] {
-    if (parsed.errors.length) return [...(p.problems ?? [])]
+    // Paths from a validator or a server may come as strings
+    const outside = (list: YamlProblem[] | undefined) => (list ?? []).map((pb) => ({ ...pb, path: toPath(pb.path) }))
+    if (parsed.errors.length) return outside(p.problems)
     const out: YamlProblem[] = []
     if (p.schema) out.push(...validate(parsed.value, p.schema, { ...defaultSchemaMessages, ...p.schemaMessages }))
     if (p.validator) {
       try {
-        out.push(...p.validator(parsed.value, parsed))
+        out.push(...outside(p.validator(parsed.value, parsed)))
       } catch (err) {
         ;(p.onError ?? console.warn)(err as Error)
       }
     }
-    out.push(...(p.problems ?? []))
+    out.push(...outside(p.problems))
     return out
   }
 
@@ -191,10 +193,15 @@ export function createYamlEditor({ target, props = {} }: { target: HTMLElement; 
 
   function renderTree() {
     if (mode !== 'tree' || parsed.errors.length) return
+    // A problem on a missing entry shows on its deepest existing parent, naming what is missing
     const byPath = new Map<string, string[]>()
     for (const problem of problems) {
-      const key = pathKey(problem.path)
-      byPath.set(key, [...(byPath.get(key) ?? []), problem.message])
+      let depth = problem.path.length
+      while (depth > 0 && !locate(parsed.doc, problem.path.slice(0, depth))) depth--
+      const key = pathKey(problem.path.slice(0, depth))
+      const missing = problem.path.slice(depth)
+      const message = missing.length ? `${pathKey(missing)}: ${problem.message}` : problem.message
+      byPath.set(key, [...(byPath.get(key) ?? []), message])
     }
     treeMode.render({
       parsed,
