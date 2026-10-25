@@ -44,3 +44,5 @@ jobs:
           createGithubReleases: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Provenance only exists in CI (OIDC): a local publish goes without
+          NPM_CONFIG_PROVENANCE: true
