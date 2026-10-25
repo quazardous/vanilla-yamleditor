@@ -43,11 +43,13 @@ export interface JsonSchema {
 }
 
 export interface YamlProblem {
-  /** Where: an array, or a string such as `a.b[0]` (normalised by the editor). */
   path: YamlPath
   message: string
   severity?: 'error' | 'warning'
 }
+
+/** A problem as given to the editor: its path may also be a string such as `a.b[0]`. */
+export type YamlProblemInput = Omit<YamlProblem, 'path'> & { path: YamlPath | string }
 
 /** The validation messages; replace them to translate. */
 export interface SchemaMessages {

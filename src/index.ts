@@ -45,5 +45,6 @@ export {
   type JsonSchemaType,
   type SchemaMessages,
   type YamlProblem,
+  type YamlProblemInput,
 } from './schema'
 export type { TreeLabels } from './tree-mode'

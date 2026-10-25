@@ -6,7 +6,7 @@
  * refused while the text has syntax errors, which then show at their line.
  */
 import { YamlEditError, locate, parseYaml, pathKey, rangeAt, toPath, type ParsedYaml, type YamlPath, type YamlSyntaxError } from './model'
-import { defaultSchemaMessages, validate, type JsonSchema, type SchemaMessages, type YamlProblem } from './schema'
+import { defaultSchemaMessages, validate, type JsonSchema, type SchemaMessages, type YamlProblem, type YamlProblemInput } from './schema'
 import { TextMode, type TextMarker } from './text-mode'
 import { TreeMode, type TreeLabels } from './tree-mode'
 
@@ -52,9 +52,9 @@ export interface YamlEditorProps {
   /** A JSON Schema (subset, see schema.ts): the tree's fields and the built-in validation. */
   schema?: JsonSchema
   /** Extra checks, run on every valid change. */
-  validator?: (value: unknown, parsed: ParsedYaml) => YamlProblem[]
+  validator?: (value: unknown, parsed: ParsedYaml) => YamlProblemInput[]
   /** Problems found elsewhere (a server check): shown like the others. */
-  problems?: YamlProblem[]
+  problems?: YamlProblemInput[]
   readOnly?: boolean
   /** Show the mode switch. Default true. */
   mainMenuBar?: boolean
@@ -142,7 +142,7 @@ export function createYamlEditor({ target, props = {} }: { target: HTMLElement; 
 
   function computeProblems(): YamlProblem[] {
     // Paths from a validator or a server may come as strings
-    const outside = (list: YamlProblem[] | undefined) => (list ?? []).map((pb) => ({ ...pb, path: toPath(pb.path) }))
+    const outside = (list: YamlProblemInput[] | undefined): YamlProblem[] => (list ?? []).map((pb) => ({ ...pb, path: toPath(pb.path) }))
     if (parsed.errors.length) return outside(p.problems)
     const out: YamlProblem[] = []
     if (p.schema) out.push(...validate(parsed.value, p.schema, { ...defaultSchemaMessages, ...p.schemaMessages }))
