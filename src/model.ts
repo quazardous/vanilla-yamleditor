@@ -73,6 +73,11 @@ export function toPath(path: unknown): YamlPath {
     .map((s) => (/^\d+$/.test(s) ? Number(s) : s))
 }
 
+/** A path key inside a `[data-path="…"]` selector (CSS.escape where the platform has it). */
+export function cssPath(key: string): string {
+  return typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(key) : key.replace(/["\\]/g, '\\$&')
+}
+
 /** A path as a stable string: `filters.paris.tags[0]`. */
 export function pathKey(path: YamlPath): string {
   return path.reduce<string>((acc, seg) => (typeof seg === 'number' ? `${acc}[${seg}]` : acc ? `${acc}.${seg}` : String(seg)), '')

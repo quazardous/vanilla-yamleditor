@@ -5,7 +5,7 @@
  * types do. Every gesture is an edit of the text (see model.ts), so comments
  * and formatting stay.
  */
-import { addItem, addKey, commentAt, deleteAt, isAliasAt, pathKey, renameKey, setValue, type ParsedYaml, type YamlPath } from './model'
+import { addItem, addKey, commentAt, cssPath, deleteAt, isAliasAt, pathKey, renameKey, setValue, type ParsedYaml, type YamlPath } from './model'
 import { defaultFor, schemaAt, typesOf, valueType, type JsonSchema, type JsonSchemaType } from './schema'
 
 export interface TreeLabels {
@@ -79,7 +79,7 @@ export class TreeMode {
     }
 
     if (focus?.path !== undefined) {
-      const row = this.root.querySelector<HTMLElement>(`[data-path="${CSS.escape(focus.path)}"]`)
+      const row = this.root.querySelector<HTMLElement>(`[data-path="${cssPath(focus.path)}"]`)
       row?.querySelector<HTMLElement>(focus.role ? `[data-role="${focus.role}"]` : 'input, select, textarea, button')?.focus()
     }
   }

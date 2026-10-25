@@ -5,7 +5,7 @@
  * the tree mode edits it through model.ts patches. Switching to the tree is
  * refused while the text has syntax errors, which then show at their line.
  */
-import { YamlEditError, locate, parseYaml, pathKey, rangeAt, toPath, type ParsedYaml, type YamlPath, type YamlSyntaxError } from './model'
+import { YamlEditError, cssPath, locate, parseYaml, pathKey, rangeAt, toPath, type ParsedYaml, type YamlPath, type YamlSyntaxError } from './model'
 import { defaultSchemaMessages, validate, type JsonSchema, type SchemaMessages, type YamlProblem, type YamlProblemInput } from './schema'
 import { TextMode, type TextMarker } from './text-mode'
 import { TreeMode, type TreeLabels } from './tree-mode'
@@ -278,7 +278,7 @@ export function createYamlEditor({ target, props = {} }: { target: HTMLElement; 
         if (range) textMode.reveal(range.from)
         return
       }
-      const row = treeHost.querySelector<HTMLElement>(`[data-path="${CSS.escape(pathKey(path))}"]`)
+      const row = treeHost.querySelector<HTMLElement>(`[data-path="${cssPath(pathKey(path))}"]`)
       row?.scrollIntoView({ block: 'nearest' })
       row?.querySelector<HTMLElement>('input, select, textarea, button')?.focus()
     },
