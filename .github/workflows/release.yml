@@ -8,17 +8,19 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
+# Versioning is local (npx changeset version, then a commit). A push whose
+# version has no v<version> tag yet is a release: the npm pack tarball goes on
+# a GitHub Release, the source consumers install from. npm publish is tried
+# too, and allowed to fail while the npm account cannot publish.
+#
 # id-token: npm Trusted Publishers (OIDC) and provenance, no NPM_TOKEN secret.
-# Configured on npmjs.com: publisher = GitHub Actions, repo =
-# quazardous/vanilla-yamleditor, workflow = release.yml.
 permissions:
   contents: write
-  pull-requests: write
   id-token: write
 
 jobs:
   release:
-    name: Version PR or publish
+    name: Tag, GitHub Release, npm
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -29,20 +31,43 @@ jobs:
           node-version: 22
           cache: npm
           registry-url: https://registry.npmjs.org
-      # OIDC Trusted Publishing needs npm 11.5.1+; pinned to 11.x (npm 12's
-      # `npm info --json` breaks @changesets/cli's published check).
-      - run: npm install -g npm@11
-      - run: npm ci
-      - run: npm run type-check
-      - run: npm test
-      - run: npm run build
-      - name: Create release PR or publish
-        uses: changesets/action@v1
-        with:
-          publish: npx changeset publish
-          version: npx changeset version
-          createGithubReleases: true
+
+      - name: Is this a release?
+        id: version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null; then
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # OIDC Trusted Publishing needs npm 11.5.1+.
+      - if: steps.version.outputs.release == 'true'
+        run: npm install -g npm@11
+      - if: steps.version.outputs.release == 'true'
+        run: npm ci
+      - if: steps.version.outputs.release == 'true'
+        run: npm run type-check && npm test && npm run build
+
+      - name: Tag and GitHub Release with the tarball
+        if: steps.version.outputs.release == 'true'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Provenance only exists in CI (OIDC): a local publish goes without
-          NPM_CONFIG_PROVENANCE: true
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          tarball=$(npm pack --ignore-scripts | tail -1)
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/${tarball}"
+          {
+            awk -v v="## ${VERSION}" '$0 == v {on=1; next} /^## / && on {exit} on' CHANGELOG.md 2>/dev/null
+            printf '\nInstall from the attached tarball:\n\n```sh\nnpm install %s\n```\n' "$url"
+          } > notes.md
+          git tag "v${VERSION}"
+          git push origin "v${VERSION}"
+          gh release create "v${VERSION}" "$tarball" --verify-tag --title "v${VERSION}" --notes-file notes.md
+
+      - name: npm publish (allowed to fail while the account cannot publish)
+        if: steps.version.outputs.release == 'true'
+        continue-on-error: true
+        run: npm publish --ignore-scripts --provenance
