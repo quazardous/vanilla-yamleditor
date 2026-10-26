@@ -8,8 +8,10 @@ A YAML editor for the browser, without a framework. It has two modes:
 Edits in the tree mode **keep the file as it was written**: comments, blank lines, key order, quoting and indentation. Each edit patches only the text of the value it changes, so a configuration file reviewed in git shows a one-line diff for a one-field change.
 
 ```sh
-npm install @quazardous/vanilla-yamleditor
+npm install github:quazardous/vanilla-yamleditor#v0.1.0
 ```
+
+Installed from GitHub, the package builds itself (`prepare`): `dist/` is not committed.
 
 ```js
 import { createYamlEditor } from '@quazardous/vanilla-yamleditor'
