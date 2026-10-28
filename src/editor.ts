@@ -1,20 +1,21 @@
 /**
- * createYamlEditor: the two modes around one text.
+ * createYamlEditor: three modes around one text.
  *
  * The text is the single source of truth. The text mode edits it directly;
- * the tree mode edits it through model.ts patches. Switching to the tree is
- * refused while the text has syntax errors, which then show at their line.
+ * the tree and form modes edit it through model.ts patches. Switching to them
+ * is refused while the text has syntax errors, which then show at their line.
  */
 import { YamlEditError, cssPath, locate, parseYaml, pathKey, rangeAt, toPath, type ParsedYaml, type YamlPath, type YamlSyntaxError } from './model'
 import { defaultSchemaMessages, validate, type JsonSchema, type SchemaMessages, type YamlProblem, type YamlProblemInput } from './schema'
 import { TextMode, type TextMarker } from './text-mode'
 import { TreeMode, type TreeLabels } from './tree-mode'
 
-export type YamlEditorMode = 'text' | 'tree'
+export type YamlEditorMode = 'text' | 'tree' | 'form'
 
 export interface YamlEditorLabels extends TreeLabels {
   text: string
   tree: string
+  form: string
   modes: string
   syntaxBlocked: string
   syntaxErrors: (n: number) => string
@@ -23,8 +24,9 @@ export interface YamlEditorLabels extends TreeLabels {
 export const defaultLabels: YamlEditorLabels = {
   text: 'Text',
   tree: 'Tree',
+  form: 'Form',
   modes: 'View',
-  syntaxBlocked: 'Fix the syntax errors before switching to the tree view',
+  syntaxBlocked: 'Fix the syntax errors before switching to the tree or form view',
   syntaxErrors: (n) => (n === 1 ? '1 syntax error' : `${n} syntax errors`),
   addItem: 'Add item',
   addKey: 'Add',
@@ -47,9 +49,9 @@ export interface YamlEditorStatus {
 export interface YamlEditorProps {
   /** The YAML text. */
   content?: string
-  /** Default: 'tree' when the text parses, else 'text'. */
+  /** Default: 'form' with a schema, 'tree' without, 'text' while the text does not parse. */
   mode?: YamlEditorMode
-  /** A JSON Schema (subset, see schema.ts): the tree's fields and the built-in validation. */
+  /** A JSON Schema (subset, see schema.ts): the tree and form controls and the built-in validation. */
   schema?: JsonSchema
   /** Extra checks, run on every valid change. */
   validator?: (value: unknown, parsed: ParsedYaml) => YamlProblemInput[]
@@ -76,7 +78,7 @@ export interface YamlEditor {
   update(content: string): void
   updateProps(props: Partial<YamlEditorProps>): void
   getMode(): YamlEditorMode
-  /** False when refused (tree mode while the text has syntax errors). */
+  /** False when refused (tree or form mode while the text has syntax errors). */
   setMode(mode: YamlEditorMode): boolean
   status(): YamlEditorStatus
   /** Show the entry at a path: its line in text mode, its field in tree mode. */
@@ -91,8 +93,8 @@ export function createYamlEditor({ target, props = {} }: { target: HTMLElement; 
   let text = p.content ?? ''
   let parsed = parseYaml(text)
   let problems: YamlProblem[] = []
-  let mode: YamlEditorMode = p.mode ?? (parsed.errors.length ? 'text' : 'tree')
-  if (mode === 'tree' && parsed.errors.length) mode = 'text'
+  let mode: YamlEditorMode = p.mode ?? (p.schema ? 'form' : 'tree')
+  if (parsed.errors.length) mode = 'text'
 
   const root = document.createElement('div')
   root.className = 'vye'
@@ -116,11 +118,10 @@ export function createYamlEditor({ target, props = {} }: { target: HTMLElement; 
   root.append(menu, body)
   target.appendChild(root)
 
-  const tabs: Record<YamlEditorMode, HTMLButtonElement> = {
-    text: document.createElement('button'),
-    tree: document.createElement('button'),
-  }
-  for (const m of ['text', 'tree'] as const) {
+  const MODES = ['text', 'tree', 'form'] as const
+  const tabs = {} as Record<YamlEditorMode, HTMLButtonElement>
+  for (const m of MODES) {
+    tabs[m] = document.createElement('button')
     const tab = tabs[m]
     tab.type = 'button'
     tab.className = `vye-tab vye-tab-${m}`
@@ -166,18 +167,20 @@ export function createYamlEditor({ target, props = {} }: { target: HTMLElement; 
     root.dataset.mode = mode
     menu.hidden = p.mainMenuBar === false
     modes.setAttribute('aria-label', labels.modes)
-    for (const m of ['text', 'tree'] as const) {
+    for (const m of MODES) {
       tabs[m].textContent = labels[m]
       tabs[m].setAttribute('aria-selected', String(mode === m))
       tabs[m].classList.toggle('vye-tab-active', mode === m)
     }
     const blocked = parsed.errors.length > 0
-    tabs.tree.setAttribute('aria-disabled', String(blocked))
-    tabs.tree.title = blocked ? labels.syntaxBlocked : ''
+    for (const m of ['tree', 'form'] as const) {
+      tabs[m].setAttribute('aria-disabled', String(blocked))
+      tabs[m].title = blocked ? labels.syntaxBlocked : ''
+    }
     status.textContent = blocked ? labels.syntaxErrors(parsed.errors.length) : ''
     status.classList.toggle('vye-status-error', blocked)
     textHost.hidden = mode !== 'text'
-    treeHost.hidden = mode !== 'tree'
+    treeHost.hidden = mode === 'text'
   }
 
   function renderMarkers() {
@@ -192,7 +195,7 @@ export function createYamlEditor({ target, props = {} }: { target: HTMLElement; 
   }
 
   function renderTree() {
-    if (mode !== 'tree' || parsed.errors.length) return
+    if (mode === 'text' || parsed.errors.length) return
     // A problem on a missing entry shows on its deepest existing parent, naming what is missing
     const byPath = new Map<string, string[]>()
     for (const problem of problems) {
@@ -204,6 +207,7 @@ export function createYamlEditor({ target, props = {} }: { target: HTMLElement; 
       byPath.set(key, [...(byPath.get(key) ?? []), message])
     }
     treeMode.render({
+      variant: mode,
       parsed,
       schema: p.schema,
       problems: byPath,
@@ -260,7 +264,7 @@ export function createYamlEditor({ target, props = {} }: { target: HTMLElement; 
     getMode: () => mode,
     setMode(next) {
       if (next === mode) return true
-      if (next === 'tree' && parsed.errors.length) {
+      if (next !== 'text' && parsed.errors.length) {
         status.textContent = labels.syntaxBlocked
         textMode.reveal(parsed.errors[0].from)
         return false

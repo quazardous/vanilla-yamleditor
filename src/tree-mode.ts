@@ -1,9 +1,15 @@
 /**
- * The tree mode: the document as a form. The schema, when there is one, gives
- * each field its control (select for an enum, checkbox, number with bounds,
- * text or textarea), its label and its help; without one the values' own
- * types do. Every gesture is an edit of the text (see model.ts), so comments
- * and formatting stay.
+ * The tree and form modes: the document as nested entries, in two looks.
+ *
+ * - tree: technical, close to the YAML itself: the real keys, `key: value` on
+ *   one line, values coloured by type and edited in place, `{n}` / `[n]` on the
+ *   collections, comments as `# …` on the line.
+ * - form: a form: schema titles as labels, help under each field, framed inputs.
+ *
+ * The schema, when there is one, gives each value its control (select for an
+ * enum, checkbox, number with bounds, text or textarea); without one the
+ * values' own types do. Every gesture is an edit of the text (see model.ts), so
+ * comments and formatting stay.
  */
 import { addItem, addKey, commentAt, cssPath, deleteAt, isAliasAt, pathKey, renameKey, setValue, type ParsedYaml, type YamlPath } from './model'
 import { defaultFor, schemaAt, typesOf, valueType, type JsonSchema, type JsonSchemaType } from './schema'
@@ -19,7 +25,10 @@ export interface TreeLabels {
   count: (n: number) => string
 }
 
+export type TreeVariant = 'tree' | 'form'
+
 export interface TreeContext {
+  variant: TreeVariant
   parsed: ParsedYaml
   schema?: JsonSchema
   /** Problem messages by path key. */
@@ -45,6 +54,13 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, attrs: 
   return node
 }
 
+/** An input as wide as its text (or its placeholder), following the typing. */
+function fitWidth(input: HTMLInputElement) {
+  const fit = () => (input.style.width = `calc(${Math.max((input.value || input.placeholder).length, 1)}ch + 0.6rem)`)
+  fit()
+  input.addEventListener('input', fit)
+}
+
 const isObject = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v)
 const isCollection = (v: unknown) => v !== null && typeof v === 'object'
 
@@ -64,6 +80,7 @@ export class TreeMode {
 
   render(ctx: TreeContext): void {
     this.ctx = ctx
+    this.root.className = `vye-tree vye-view-${ctx.variant}`
     // Keep the focus on the same control across the redraw
     const active = document.activeElement as HTMLElement | null
     const focus = active && this.root.contains(active) ? { path: active.closest<HTMLElement>('[data-path]')?.dataset.path, role: active.dataset.role } : null
@@ -154,6 +171,9 @@ export class TreeMode {
       head.appendChild(toggle)
     }
 
+    const technical = this.ctx.variant === 'tree'
+    if (technical && !collection) head.appendChild(el('span', 'vye-toggle-space'))
+
     if (key !== null) {
       if (renamable && typeof key === 'string') {
         const input = el('input', 'vye-key vye-key-input', { type: 'text', value: key, 'aria-label': labels.rename, 'data-role': 'key' })
@@ -162,18 +182,25 @@ export class TreeMode {
           if (!next || next === key) return void (input.value = key)
           this.ctx.edit((t) => renameKey(t, path.slice(0, -1), key, next))
         })
+        if (technical) fitWidth(input)
         head.appendChild(input)
+      } else if (technical) {
+        // The real key; the schema's title and help on hover
+        const help = [schema?.title, schema?.description].filter(Boolean).map((t) => translate(t!)).join(' — ')
+        head.appendChild(el('span', `vye-key${typeof key === 'number' ? ' vye-index' : ''}`, { title: help || undefined }, String(key)))
       } else {
         const text = typeof key === 'number' ? `${key}` : translate(schema?.title ?? key)
         head.appendChild(el('span', `vye-key${typeof key === 'number' ? ' vye-index' : ''}`, { title: typeof key === 'string' ? key : undefined }, text))
       }
+      if (technical) head.appendChild(el('span', 'vye-colon', {}, ':'))
     }
 
     if (isAliasAt(parsed.doc, path)) {
       head.appendChild(el('span', 'vye-alias', { title: labels.alias }, JSON.stringify(value)))
     } else if (collection) {
       const count = Array.isArray(value) ? value.length : Object.keys(value as object).length
-      head.appendChild(el('span', 'vye-count', {}, labels.count(count)))
+      const summary = technical ? (Array.isArray(value) ? `[${count}]` : `{${count}}`) : labels.count(count)
+      head.appendChild(el('span', 'vye-count', { title: technical ? labels.count(count) : undefined }, summary))
     } else {
       head.appendChild(this.renderControl(value, path, schema))
     }
@@ -184,8 +211,14 @@ export class TreeMode {
       head.appendChild(remove)
     }
 
-    const hint = [schema?.description ? translate(schema.description) : null, commentAt(parsed.doc, path)].filter(Boolean).join(' — ')
-    if (hint) row.appendChild(el('div', 'vye-hint', {}, hint))
+    const comment = commentAt(parsed.doc, path)
+    if (technical) {
+      // Before the remove button, which sits at the end of the line
+      if (comment) head.insertBefore(el('span', 'vye-comment', {}, comment.split('\n').map((line) => `# ${line}`).join(' ')), head.querySelector('.vye-remove'))
+    } else {
+      const hint = [schema?.description ? translate(schema.description) : null, comment].filter(Boolean).join(' — ')
+      if (hint) row.appendChild(el('div', 'vye-hint', {}, hint))
+    }
     for (const message of messages) row.appendChild(el('div', 'vye-problem', { role: 'alert' }, message))
 
     if (collection && isOpen && !isAliasAt(parsed.doc, path)) row.appendChild(this.renderChildren(value, path, schema))
@@ -214,6 +247,7 @@ export class TreeMode {
         select.prepend(opt)
       }
       select.addEventListener('change', () => select.value !== '' && set(schema.enum![Number(select.value)]))
+      if (this.ctx.variant === 'tree') select.classList.add(`vye-t-${value === null ? 'null' : valueType(value)}`)
       return select
     }
 
@@ -221,7 +255,11 @@ export class TreeMode {
       const box = el('input', 'vye-input vye-checkbox', { type: 'checkbox', disabled: readOnly, 'data-role': 'value' })
       box.checked = value === true
       box.addEventListener('change', () => set(box.checked))
-      return box
+      if (this.ctx.variant === 'form') return box
+      // tree: the value written next to its box
+      const label = el('label', 'vye-bool')
+      label.append(box, el('span', `vye-t-${value === null ? 'null' : 'boolean'}`, {}, String(value)))
+      return label
     }
 
     if (type === 'number' || type === 'integer') {
@@ -240,7 +278,7 @@ export class TreeMode {
         const n = Number(input.value)
         if (Number.isFinite(n)) set(type === 'integer' ? Math.trunc(n) : n)
       })
-      return input
+      return this.typed(input, value === null ? 'null' : 'number')
     }
 
     const text = value === null || value === undefined ? '' : String(value)
@@ -253,6 +291,14 @@ export class TreeMode {
       if (input.value === '' && (nullable || (value === null && !types.length))) return set(null)
       set(input.value)
     })
+    return this.typed(input, value === null ? 'null' : 'string')
+  }
+
+  /** tree: the value coloured by its type, and an input as wide as its text. */
+  private typed(input: HTMLInputElement | HTMLTextAreaElement, type: string): HTMLElement {
+    if (this.ctx.variant === 'form') return input
+    input.classList.add(`vye-t-${type}`)
+    if (input instanceof HTMLInputElement) fitWidth(input)
     return input
   }
 

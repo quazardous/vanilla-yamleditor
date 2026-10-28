@@ -49,9 +49,9 @@ function change(input: HTMLInputElement | HTMLSelectElement, value: string) {
 }
 
 describe('createYamlEditor', () => {
-  it('opens in tree mode with schema-driven controls', () => {
+  it('opens in form mode with schema-driven controls', () => {
     const { target } = mount()
-    expect(target.querySelector('.vye')!.getAttribute('data-mode')).toBe('tree')
+    expect(target.querySelector('.vye')!.getAttribute('data-mode')).toBe('form')
     expect(row(target, 'stores.paris.enabled').querySelector('input')!.type).toBe('checkbox')
     expect(row(target, 'stores.paris.min_stock').querySelector('input')!.type).toBe('number')
     expect(row(target, 'stores.paris.channel').querySelector('select')).not.toBeNull()
@@ -115,6 +115,8 @@ describe('createYamlEditor', () => {
     expect(editor.getMode()).toBe('text')
     expect(target.querySelector('.vye-status')!.textContent).toMatch(/syntax/)
     expect(target.querySelector('.vye-tab-tree')!.getAttribute('aria-disabled')).toBe('true')
+    expect(editor.setMode('form')).toBe(false)
+    expect(target.querySelector('.vye-tab-form')!.getAttribute('aria-disabled')).toBe('true')
     editor.update('a: [1]\n')
     expect(editor.setMode('tree')).toBe(true)
     expect(onChangeMode.mock.calls.map((c) => c[0])).toEqual(['text', 'tree'])
@@ -144,6 +146,40 @@ describe('createYamlEditor', () => {
     const { target } = mount({ translate: (s) => `[${s}]`, labels: { text: 'Texte', tree: 'Arbre' } })
     expect(row(target, 'stores.paris.min_stock').querySelector('.vye-key')!.textContent).toBe('[Minimum stock]')
     expect(target.querySelector('.vye-tab-text')!.textContent).toBe('Texte')
+  })
+})
+
+describe('tree mode', () => {
+  it('is the default without a schema; form stays one click away', () => {
+    const { target, editor } = mount({ schema: undefined })
+    expect(editor.getMode()).toBe('tree')
+    expect(target.querySelector('.vye-tree')!.classList.contains('vye-view-tree')).toBe(true)
+    expect([...target.querySelectorAll('.vye-tab')].map((t) => t.textContent)).toEqual(['Text', 'Tree', 'Form'])
+    expect(editor.setMode('form')).toBe(true)
+    expect(target.querySelector('.vye-tree')!.classList.contains('vye-view-form')).toBe(true)
+  })
+
+  it('shows the real keys, `key: value` on a line, sizes and comments', () => {
+    const { target } = mount({ mode: 'tree' })
+    const head = (path: string) => row(target, path).querySelector<HTMLElement>(':scope > .vye-entry-head')!
+    // The real key, the schema title on hover
+    expect(head('stores.paris.min_stock').querySelector('.vye-key')!.textContent).toBe('min_stock')
+    expect(head('stores.paris.min_stock').querySelector('.vye-key')!.getAttribute('title')).toBe('Minimum stock')
+    expect(head('stores.paris.min_stock').querySelector('.vye-colon')!.textContent).toBe(':')
+    expect(head('stores.paris.min_stock').querySelector('input')!.classList.contains('vye-t-number')).toBe(true)
+    expect(head('stores.paris').querySelector('.vye-count')!.textContent).toBe('{3}')
+    // The comment on its line, no help line under it
+    expect(head('stores.paris.enabled').querySelector('.vye-comment')!.textContent).toBe('# live')
+    expect(row(target, 'stores.paris.enabled').querySelector('.vye-hint')).toBeNull()
+    expect(head('stores.paris.enabled').querySelector('.vye-bool')!.textContent).toBe('true')
+  })
+
+  it('edits in place, through the same patches', () => {
+    const { target, editor } = mount({ mode: 'tree', schema: undefined, content: 'a: 1 # one\nlist: [x, y]\n' })
+    expect(row(target, 'list').querySelector('.vye-count')!.textContent).toBe('[2]')
+    change(row(target, 'a').querySelector<HTMLInputElement>('[data-role="value"]')!, '2')
+    change(row(target, 'list[1]').querySelector<HTMLInputElement>('[data-role="value"]')!, 'z')
+    expect(editor.get()).toBe('a: 2 # one\nlist: [x, z]\n')
   })
 })
 

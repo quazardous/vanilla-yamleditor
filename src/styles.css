@@ -387,3 +387,183 @@
 .vye-problem-root {
   margin: 0 0 0.5rem;
 }
+
+/* Tree mode: technical, close to the YAML (the rules above are the form mode's) */
+.vye-view-tree {
+  font-family: var(--vye-mono);
+  font-size: 0.8125rem;
+}
+
+.vye-view-tree .vye-children {
+  gap: 0;
+}
+
+.vye-view-tree .vye-entry > .vye-children {
+  margin: 0 0 0 0.6rem;
+  padding-left: 0.65rem;
+  border-left: 1px dotted var(--vye-border);
+}
+
+.vye-view-tree .vye-entry-head {
+  gap: 0.15rem;
+  min-height: 1.6rem;
+  padding-right: 0.25rem;
+  border-radius: var(--vye-radius);
+}
+
+.vye-view-tree .vye-entry-head:hover {
+  background: var(--vye-active-line);
+}
+
+.vye-view-tree .vye-toggle,
+.vye-toggle-space {
+  flex: 0 0 1.1rem;
+  width: 1.1rem;
+}
+
+.vye-view-tree .vye-key {
+  min-width: 0;
+  color: var(--vye-tok-key);
+  font-weight: 400;
+}
+
+.vye-view-tree .vye-index {
+  min-width: 0;
+  color: var(--vye-muted);
+}
+
+.vye-colon {
+  margin-right: 0.35rem;
+  color: var(--vye-muted);
+}
+
+.vye-view-tree .vye-input,
+.vye-view-tree .vye-key-input {
+  min-width: 0;
+  padding: 0 0.25rem;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  font: inherit;
+}
+
+.vye-view-tree .vye-input:hover:not(:disabled),
+.vye-view-tree .vye-key-input:hover {
+  border-color: var(--vye-border);
+}
+
+.vye-view-tree .vye-input:focus,
+.vye-view-tree .vye-key-input:focus {
+  background: var(--vye-input-bg);
+}
+
+.vye-view-tree .vye-key-input {
+  color: var(--vye-tok-key);
+}
+
+.vye-view-tree .vye-string,
+.vye-view-tree .vye-number {
+  flex: 0 1 auto;
+  max-width: 100%;
+}
+
+/* No spin buttons: the number is written like the others */
+.vye-view-tree .vye-number {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.vye-view-tree .vye-number::-webkit-inner-spin-button,
+.vye-view-tree .vye-number::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
+.vye-view-tree .vye-textarea {
+  min-width: 16rem;
+}
+
+.vye-view-tree .vye-input:disabled {
+  opacity: 1;
+}
+
+.vye-bool {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+}
+
+.vye-t-string {
+  color: var(--vye-tok-string);
+}
+
+.vye-t-number {
+  color: var(--vye-tok-number);
+}
+
+.vye-t-boolean,
+.vye-t-null {
+  color: var(--vye-tok-bool);
+}
+
+.vye-view-tree .vye-count {
+  color: var(--vye-muted);
+}
+
+.vye-comment {
+  margin-left: 0.75rem;
+  overflow: hidden;
+  color: var(--vye-tok-comment);
+  font-style: italic;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The remove button only on the line under the pointer or the focus */
+.vye-view-tree .vye-remove {
+  width: 1.25rem;
+  height: 1.25rem;
+  opacity: 0;
+}
+
+.vye-view-tree .vye-entry-head:hover .vye-remove,
+.vye-view-tree .vye-remove:focus-visible {
+  opacity: 1;
+}
+
+.vye-view-tree .vye-hint,
+.vye-view-tree .vye-problem {
+  margin: 0 0 0.15rem 1.25rem;
+  font-family: var(--vye-font);
+}
+
+.vye-view-tree .vye-add-row {
+  gap: 0.3rem;
+  margin: 0 0 0.15rem 1.25rem;
+  opacity: 0.35;
+}
+
+.vye-view-tree .vye-add-row:hover,
+.vye-view-tree .vye-add-row:focus-within {
+  opacity: 1;
+}
+
+.vye-view-tree .vye-add {
+  padding: 0 0.45rem;
+  font-family: var(--vye-mono);
+  font-size: 0.75rem;
+}
+
+.vye-view-tree .vye-new-key {
+  width: 7rem;
+  padding: 0 0.35rem;
+  font-family: var(--vye-mono);
+  font-size: 0.75rem;
+}
+
+.vye-view-tree .vye-invalid > .vye-entry-head .vye-input,
+.vye-view-tree .vye-invalid > .vye-entry-head .vye-key-input {
+  border-color: transparent;
+  text-decoration: underline wavy var(--vye-error);
+}
