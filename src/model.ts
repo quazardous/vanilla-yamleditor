@@ -435,6 +435,16 @@ export function changedPaths(a: unknown, b: unknown, path: YamlPath = []): YamlP
   return JSON.stringify(a) === JSON.stringify(b) ? [] : [path]
 }
 
+/**
+ * The keys that changed between two YAML texts (see changedPaths); null when
+ * one of them does not parse. No diff view needed: this is in the main entry.
+ */
+export function yamlChangedPaths(original: string, modified: string): YamlPath[] | null {
+  const a = parseYaml(original)
+  const b = parseYaml(modified)
+  return a.errors.length || b.errors.length ? null : changedPaths(a.value, b.value)
+}
+
 /** Valid YAML that is most likely a typo. */
 export interface YamlLint {
   kind: 'colonKey' | 'spacedKey'

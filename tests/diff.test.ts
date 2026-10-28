@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { changedPaths, createYamlDiff, type YamlDiff } from '../src/index'
+import { changedPaths, yamlChangedPaths } from '../src/index'
+import { createYamlDiff, diffYaml, type YamlDiff } from '../src/diff'
 
 const BEFORE = `# stores
 stores:
@@ -29,6 +30,25 @@ describe('changedPaths', () => {
     expect(changedPaths({ a: 1, b: { c: 2 }, l: [1, 2] }, { a: 1, b: { c: 3, d: 4 }, l: [1] })).toEqual([['b', 'c'], ['b', 'd'], ['l', 1]])
     expect(changedPaths({ a: 1 }, { a: 1 })).toEqual([])
     expect(changedPaths(1, 2)).toEqual([[]])
+  })
+})
+
+describe('yamlChangedPaths / diffYaml', () => {
+  it('the changed keys of two texts, null when one does not parse', () => {
+    expect(yamlChangedPaths(BEFORE, BEFORE.replace('min_stock: 3', 'min_stock: 4'))).toEqual([['stores', 'paris', 'min_stock']])
+    expect(yamlChangedPaths(BEFORE, BEFORE.replace('# live', '# off'))).toEqual([])
+    expect(yamlChangedPaths(BEFORE, 'a: [1\n')).toBeNull()
+  })
+
+  it('diffYaml: the comparison without a view', () => {
+    const modified = BEFORE.replace('min_stock: 3', 'min_stock: 4')
+    const result = diffYaml(BEFORE, modified)
+    expect(result).toMatchObject({ identical: false, added: 1, removed: 1, changes: 1, paths: [['stores', 'paris', 'min_stock']] })
+    expect(result.chunks).toHaveLength(1)
+    const [chunk] = result.chunks
+    expect(BEFORE.slice(chunk.fromA, chunk.toA)).toContain('min_stock: 3')
+    expect(modified.slice(chunk.fromB, chunk.toB)).toContain('min_stock: 4')
+    expect(diffYaml(BEFORE, BEFORE)).toMatchObject({ identical: true, changes: 0, chunks: [] })
   })
 })
 

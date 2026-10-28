@@ -9,7 +9,11 @@
  * import '@quazardous/vanilla-yamleditor/styles.css'
  *
  * const editor = createYamlEditor({ target, props: { content, schema, onChange } })
- * const diff = createYamlDiff({ target, props: { original, modified } })
+ *
+ * The diff view has its own entry, so that the editor does not bring
+ * @codemirror/merge along:
+ *
+ * import { createYamlDiff, diffYaml } from '@quazardous/vanilla-yamleditor/diff'
  */
 export {
   createYamlEditor,
@@ -20,15 +24,6 @@ export {
   type YamlEditorProps,
   type YamlEditorStatus,
 } from './editor'
-export {
-  createYamlDiff,
-  defaultDiffLabels,
-  type YamlDiff,
-  type YamlDiffLabels,
-  type YamlDiffProps,
-  type YamlDiffSummary,
-  type YamlDiffView,
-} from './diff'
 export {
   addItem,
   changedPaths,
@@ -42,6 +37,7 @@ export {
   renameKey,
   setValue,
   toPath,
+  yamlChangedPaths,
   valueAt,
   YamlEditError,
   type ParsedYaml,

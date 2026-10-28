@@ -7,7 +7,8 @@ const external = Object.keys(pkg.dependencies).map((name) => new RegExp(`^${name
 
 export default defineConfig({
   build: {
-    lib: { entry: 'src/index.ts', formats: ['es'], fileName: 'index' },
+    // Two entries: the diff apart, so that the editor does not bring @codemirror/merge along
+    lib: { entry: { index: 'src/index.ts', diff: 'src/diff.ts' }, formats: ['es'] },
     rollupOptions: { external },
     sourcemap: true,
     emptyOutDir: true,

@@ -1,5 +1,8 @@
 /**
- * createYamlDiff: two YAML texts compared, side by side or unified.
+ * The diff entry, @quazardous/vanilla-yamleditor/diff: createYamlDiff, two
+ * YAML texts compared side by side or unified, and diffYaml, the same
+ * comparison without a view. Apart from the main entry, so that the editor
+ * does not bring @codemirror/merge along.
  *
  * A line diff (@codemirror/merge), which is what a reviewer reads: the
  * editor's edits only touch the lines they change. On top of it, the keys
@@ -12,7 +15,7 @@ import { syntaxHighlighting } from '@codemirror/language'
 import { yaml } from '@codemirror/lang-yaml'
 import { classHighlighter } from '@lezer/highlight'
 import { Chunk, MergeView, goToNextChunk, goToPreviousChunk, unifiedMergeView } from '@codemirror/merge'
-import { changedPaths, locate, parseYaml, pathKey, rangeAt, type YamlPath } from './model'
+import { locate, parseYaml, pathKey, rangeAt, yamlChangedPaths, type YamlPath } from './model'
 
 export type YamlDiffView = 'split' | 'unified'
 
@@ -69,6 +72,37 @@ export interface YamlDiffSummary {
   changes: number
   /** The keys that changed; null when a side does not parse. */
   paths: YamlPath[] | null
+}
+
+/** A changed stretch: offsets in the text before (A) and after (B), whole lines. */
+export interface YamlDiffChunk {
+  fromA: number
+  toA: number
+  fromB: number
+  toB: number
+}
+
+export interface YamlDiffResult extends YamlDiffSummary {
+  chunks: YamlDiffChunk[]
+}
+
+/**
+ * Two YAML texts compared, without a view: the changed stretches (line diff),
+ * the lines added and removed, and the keys that changed. For a host with its
+ * own diff rendering.
+ */
+export function diffYaml(original: string, modified: string): YamlDiffResult {
+  const a = Text.of(original.split(/\r?\n/))
+  const b = Text.of(modified.split(/\r?\n/))
+  const chunks = Chunk.build(a, b, { scanLimit: 500 })
+  return {
+    identical: original === modified,
+    added: chunks.reduce((n, c) => n + lineCount(b, c.fromB, c.toB, c.endB), 0),
+    removed: chunks.reduce((n, c) => n + lineCount(a, c.fromA, c.toA, c.endA), 0),
+    changes: chunks.length,
+    chunks: chunks.map((c) => ({ fromA: c.fromA, toA: Math.min(c.toA, a.length), fromB: c.fromB, toB: Math.min(c.toB, b.length) })),
+    paths: yamlChangedPaths(original, modified),
+  }
 }
 
 export interface YamlDiff {
@@ -147,18 +181,8 @@ export function createYamlDiff({ target, props = {} }: { target: HTMLElement; pr
   const afterView = () => merge?.b ?? unified
 
   function compute(): YamlDiffSummary {
-    const a = Text.of(original.split(/\r?\n/))
-    const b = Text.of(modified.split(/\r?\n/))
-    const chunks = Chunk.build(a, b, { scanLimit: 500 })
-    const pa = parseYaml(original)
-    const pb = parseYaml(modified)
-    return {
-      identical: original === modified,
-      added: chunks.reduce((n, c) => n + lineCount(b, c.fromB, c.toB, c.endB), 0),
-      removed: chunks.reduce((n, c) => n + lineCount(a, c.fromA, c.toA, c.endA), 0),
-      changes: chunks.length,
-      paths: pa.errors.length || pb.errors.length ? null : changedPaths(pa.value, pb.value),
-    }
+    const { chunks: _chunks, ...summary } = diffYaml(original, modified)
+    return summary
   }
 
   function build() {
