@@ -23,7 +23,7 @@ and tag it `question`.
 
 ```sh
 npm install          # also builds dist/
-npm run dev          # demo page with live reload
+npm run dev          # the playground (demo/) with live reload
 npm test             # vitest (jsdom)
 npm run type-check   # tsc --noEmit
 npm run build        # vite build + type declarations

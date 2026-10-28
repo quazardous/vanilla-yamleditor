@@ -8,7 +8,11 @@ A YAML editor for the browser, without a framework. It has three modes:
 - **tree**: the document as YAML-like nested lines: `key: value`, values coloured by type and edited in place, chevrons to fold, `{n}` / `[n]` on the collections, comments on their line;
 - **form**: the document as a form, with a labelled control per value (checkbox, select, number with bounds, text), the schema's titles and help.
 
-Both the tree and the form take their controls from a JSON Schema when you give one. Their edits **keep the file as it was written**: comments, blank lines, key order, quoting and indentation. Each edit patches only the text of the value it changes, so a configuration file reviewed in git shows a one-line diff for a one-field change.
+Both the tree and the form take their controls from a JSON Schema when you give one: labelled choices, variants, read-only and deprecated fields (see [Schema](#schema)). Their edits **keep the file as it was written**: comments, blank lines, key order, quoting and indentation. Each edit patches only the text of the value it changes, so a configuration file reviewed in git shows a one-line diff for a one-field change.
+
+Besides, it warns on valid YAML that is likely a typo (`port :: 8080`), and comes with a [diff view](#diff) of two YAML texts that names the keys that changed.
+
+Try it online: [yamleditor.davidberlioz.net](https://yamleditor.davidberlioz.net).
 
 ```sh
 npm install https://github.com/quazardous/vanilla-yamleditor/releases/download/v0.5.1/quazardous-vanilla-yamleditor-0.5.1.tgz
@@ -63,7 +67,7 @@ A subset of JSON Schema, enough for configuration files:
 - `title` and `description`, which become the label and the help (in the tree: a tooltip on the key);
 - `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`;
 - `minLength`, `maxLength`, `pattern`, and `format: 'textarea'`;
-- `properties`, `required` and `additionalProperties`. A schema here turns the map into a table of free keys;
+- `properties`, `required` and `additionalProperties`. With a schema as `additionalProperties`, the map takes any key, each value shaped by that schema (stores by name, for instance);
 - `items`, `minItems`, `maxItems`;
 - `readOnly` (the value is shown, not editable, and the entry cannot be removed or renamed; it applies below it too), `deprecated` (struck through, and a warning while the entry is there), `examples` (the first one as the input's placeholder);
 - local `$ref` (`#/$defs/…`, `#/definitions/…`).
@@ -95,18 +99,23 @@ The discriminator becomes a select of the branches (by title); choosing another 
 
 In the tree and the form, a declared property that is missing shows as an "add" button. A required property cannot be removed. A new entry starts from its `default`, or from an empty value of its type that includes its required keys. To get a full validator (Ajv…), pass it as `validator`.
 
-Comments written in the file show under their field as help, next to the schema's `description`.
+Comments written in the file show as help: under their field in the form, next to the schema's `description`; on their line, as `# …`, in the tree.
 
 ## Editing without the UI
 
 The text edits are exported, so a script can change a file the same way:
 
 ```js
+import { readFileSync } from 'node:fs'
 import { setValue, addKey, addItem, deleteAt, renameKey, parseYaml } from '@quazardous/vanilla-yamleditor'
 
-let text = setValue(text, ['filters', 'paris', 'min_stock'], 5)
+let text = readFileSync('stores.yaml', 'utf8')
+text = setValue(text, ['filters', 'paris', 'min_stock'], 5)
 text = addKey(text, ['filters'], 'nice', { enabled: true })
+parseYaml(text).value // the plain value, comments and layout of the file untouched
 ```
+
+`addItem`, `deleteAt` and `renameKey` work the same way. An edit that cannot be done (a key renamed to one that exists) throws a `YamlEditError`.
 
 ## Diff
 
@@ -132,7 +141,7 @@ Methods: `update({ original?, modified? })`, `updateProps(props)`, `summary()`, 
 
 ## Theming
 
-The look is set by `--vye-*` CSS variables (colours, radius, fonts, syntax tokens), on `.vye` or any ancestor. `.vye-theme-dark` switches to the dark set.
+The look is set by `--vye-*` CSS variables (colours, radius, fonts, syntax tokens; `--vye-diff-*` for the diff), on `.vye` or any ancestor. `.vye-theme-dark` switches to the dark set.
 
 ## Development
 
@@ -142,5 +151,7 @@ npm run dev     # playground on http://localhost:5181
 npm test
 npm run build
 ```
+
+Changes by version: [CHANGELOG.md](CHANGELOG.md). Contributions: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 MIT
