@@ -590,3 +590,158 @@
   text-decoration: line-through;
   opacity: 0.75;
 }
+
+/* Diff (createYamlDiff) */
+.vye-diff {
+  --vye-diff-added: rgba(22, 163, 74, 0.13);
+  --vye-diff-added-text: rgba(22, 163, 74, 0.3);
+  --vye-diff-removed: rgba(220, 38, 38, 0.11);
+  --vye-diff-removed-text: rgba(220, 38, 38, 0.28);
+  --vye-diff-added-mark: #16a34a;
+  --vye-diff-removed-mark: #dc2626;
+}
+
+.vye-theme-dark .vye-diff,
+.vye-diff.vye-theme-dark {
+  --vye-diff-added: rgba(74, 222, 128, 0.12);
+  --vye-diff-added-text: rgba(74, 222, 128, 0.28);
+  --vye-diff-removed: rgba(248, 113, 113, 0.12);
+  --vye-diff-removed-text: rgba(248, 113, 113, 0.3);
+  --vye-diff-added-mark: #4ade80;
+  --vye-diff-removed-mark: #f87171;
+}
+
+.vye-diff-nav {
+  width: 1.75rem;
+  height: 1.6rem;
+  padding: 0;
+  border: 1px solid var(--vye-border);
+  border-radius: var(--vye-radius);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.vye-diff-nav:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.vye-diff-nav + .vye-diff-nav {
+  margin-left: -0.5rem;
+}
+
+.vye-diff-paths {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--vye-border);
+  background: var(--vye-panel);
+}
+
+.vye-diff-paths[hidden],
+.vye-diff-heads[hidden] {
+  display: none;
+}
+
+.vye-diff-path {
+  padding: 0.05rem 0.45rem;
+  border: 1px solid var(--vye-border);
+  border-radius: 999px;
+  background: var(--vye-bg);
+  color: var(--vye-tok-key);
+  cursor: pointer;
+  font-family: var(--vye-mono);
+  font-size: 0.75rem;
+}
+
+.vye-diff-path:hover {
+  border-color: var(--vye-accent);
+}
+
+.vye-diff-heads {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--vye-border);
+  color: var(--vye-muted);
+  font-size: 0.75rem;
+}
+
+.vye-diff-head {
+  padding: 0.2rem 0.5rem;
+}
+
+.vye-diff-head + .vye-diff-head {
+  border-left: 1px solid var(--vye-border);
+}
+
+.vye-diff-host {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.vye-diff .cm-editor {
+  background: var(--vye-bg);
+  color: var(--vye-fg);
+  font-family: var(--vye-mono);
+}
+
+.vye-diff .cm-scroller {
+  font-family: var(--vye-mono);
+  line-height: 1.5;
+}
+
+.vye-diff .cm-gutters {
+  background: var(--vye-gutter-bg);
+  border-right: 1px solid var(--vye-border);
+  color: var(--vye-muted);
+}
+
+.vye-diff .cm-mergeViewEditor + .cm-mergeViewEditor {
+  border-left: 1px solid var(--vye-border);
+}
+
+/* The changes, in the theme's colours (light and dark alike) */
+.vye.vye-diff .cm-merge-a .cm-changedLine,
+.vye.vye-diff .cm-deletedChunk {
+  background: var(--vye-diff-removed);
+}
+
+.vye.vye-diff .cm-merge-b .cm-changedLine,
+.vye.vye-diff .cm-inlineChangedLine,
+.vye.vye-diff .cm-insertedLine {
+  background: var(--vye-diff-added);
+}
+
+.vye.vye-diff .cm-merge-a .cm-changedText,
+.vye.vye-diff .cm-deletedChunk .cm-deletedText,
+.vye.vye-diff .cm-deletedText {
+  background: var(--vye-diff-removed-text);
+}
+
+.vye.vye-diff .cm-merge-b .cm-changedText,
+.vye.vye-diff .cm-changedText {
+  background: var(--vye-diff-added-text);
+}
+
+.vye.vye-diff .cm-merge-a .cm-changedLineGutter,
+.vye.vye-diff .cm-deletedLineGutter {
+  background: var(--vye-diff-removed-mark);
+}
+
+.vye.vye-diff .cm-merge-b .cm-changedLineGutter,
+.vye.vye-diff .cm-changedLineGutter {
+  background: var(--vye-diff-added-mark);
+}
+
+.vye.vye-diff .cm-collapsedLines {
+  background: var(--vye-panel);
+  color: var(--vye-muted);
+}
+
+.vye.vye-diff .cm-deletedChunk del {
+  text-decoration: none;
+}

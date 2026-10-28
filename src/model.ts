@@ -414,6 +414,27 @@ export function isAliasAt(doc: Document, path: YamlPath): boolean {
 }
 
 /** The comment written with the entry at a path: the lines above it and its end-of-line comment. */
+/**
+ * Where two plain values differ: a changed scalar, a key or an item added or
+ * removed. In document order, a's keys first; comments and layout do not count.
+ */
+export function changedPaths(a: unknown, b: unknown, path: YamlPath = []): YamlPath[] {
+  const isMapValue = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v)
+  if (isMapValue(a) && isMapValue(b)) {
+    const keys = [...Object.keys(a), ...Object.keys(b).filter((k) => !(k in a))]
+    return keys.flatMap((k) => (k in a && k in b ? changedPaths(a[k], b[k], [...path, k]) : [[...path, k]]))
+  }
+  if (Array.isArray(a) && Array.isArray(b)) {
+    const out: YamlPath[] = []
+    for (let i = 0; i < Math.max(a.length, b.length); i++) {
+      if (i < a.length && i < b.length) out.push(...changedPaths(a[i], b[i], [...path, i]))
+      else out.push([...path, i])
+    }
+    return out
+  }
+  return JSON.stringify(a) === JSON.stringify(b) ? [] : [path]
+}
+
 /** Valid YAML that is most likely a typo. */
 export interface YamlLint {
   kind: 'colonKey' | 'spacedKey'

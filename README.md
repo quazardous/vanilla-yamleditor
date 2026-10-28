@@ -108,6 +108,28 @@ let text = setValue(text, ['filters', 'paris', 'min_stock'], 5)
 text = addKey(text, ['filters'], 'nice', { enabled: true })
 ```
 
+## Diff
+
+`createYamlDiff` compares two YAML texts, side by side or unified, with the YAML colouring: added and removed lines, the words that changed in a line, long unchanged stretches folded. Above it, the **keys that changed** (`filters.paris.min_stock`), from the two parsed documents: a comment or a layout change shows in the lines, not in the keys. A click on a key shows it. Read only; for a review before saving, or a conflict.
+
+```js
+import { createYamlDiff } from '@quazardous/vanilla-yamleditor'
+
+const diff = createYamlDiff({ target, props: { original: savedText, modified: editor.get() } })
+diff.summary() // { identical, added, removed, changes, paths: [['filters', 'paris', 'min_stock']] }
+```
+
+| Prop | |
+|---|---|
+| `original`, `modified` | the two texts |
+| `view` | `'split'` (default) or `'unified'` |
+| `collapseUnchanged` | fold long unchanged stretches (default `true`) |
+| `mainMenuBar` | the bar: views, previous / next change, summary, changed keys (default `true`) |
+| `labels` | its texts, to translate |
+| `onChangeView` | `(view)` |
+
+Methods: `update({ original?, modified? })`, `updateProps(props)`, `summary()`, `next()`, `previous()`, `revealPath(path)`, `destroy()`. `changedPaths(a, b)` gives the changed keys of two plain values.
+
 ## Theming
 
 The look is set by `--vye-*` CSS variables (colours, radius, fonts, syntax tokens), on `.vye` or any ancestor. `.vye-theme-dark` switches to the dark set.
