@@ -1,5 +1,11 @@
 # @quazardous/vanilla-yamleditor
 
+## 0.5.1
+
+### Patch Changes
+
+- 872c948: A multi-line value (textarea): its key sits on the first line, not in the middle, in the tree and form modes.
+
 ## 0.5.0
 
 ### Minor Changes
