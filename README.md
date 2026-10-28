@@ -15,7 +15,7 @@ Besides, it warns on valid YAML that is likely a typo (`port :: 8080`), and come
 Try it online: [yamleditor.davidberlioz.net](https://yamleditor.davidberlioz.net).
 
 ```sh
-npm install https://github.com/quazardous/vanilla-yamleditor/releases/download/v0.6.0/quazardous-vanilla-yamleditor-0.6.0.tgz
+npm install https://github.com/quazardous/vanilla-yamleditor/releases/download/v0.7.0/quazardous-vanilla-yamleditor-0.7.0.tgz
 ```
 
 Each [GitHub Release](https://github.com/quazardous/vanilla-yamleditor/releases) carries the package tarball, built and ready.
