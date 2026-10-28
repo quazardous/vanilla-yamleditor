@@ -78,7 +78,8 @@
   background: var(--vye-panel);
 }
 
-.vye-menu[hidden] {
+.vye-menu[hidden],
+.vye-modes[hidden] {
   display: none;
 }
 

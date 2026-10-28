@@ -56,8 +56,13 @@ export interface YamlEditorStatus {
 export interface YamlEditorProps {
   /** The YAML text. */
   content?: string
-  /** Default: 'form' with a schema, 'tree' without, 'text' while the text does not parse. */
+  /** The view to start in. Default, among `modes`: 'form' with a schema, 'tree' without, else the other structured one, else 'text'; 'text' while the text does not parse. */
   mode?: YamlEditorMode
+  /**
+   * The views offered, in the order of their buttons. Default all three. While
+   * the text does not parse the text view shows anyway: it is the only way to fix it.
+   */
+  modes?: YamlEditorMode[]
   /** A JSON Schema (subset, see schema.ts): the tree and form controls and the built-in validation. */
   schema?: JsonSchema
   /** Extra checks, run on every valid change. */
@@ -67,8 +72,10 @@ export interface YamlEditorProps {
   /** Warn on valid YAML that is likely a typo, such as `key ::`. Default true. */
   lint?: boolean
   readOnly?: boolean
-  /** Show the mode switch. Default true. */
+  /** Show the bar: the mode buttons and the status (syntax errors, warnings). Default true. */
   mainMenuBar?: boolean
+  /** Show the mode buttons in the bar (hidden anyway with a single mode). Default true. */
+  modeSwitch?: boolean
   labels?: Partial<YamlEditorLabels>
   schemaMessages?: Partial<SchemaMessages>
   /** Turn schema titles and descriptions into the text shown (i18n tokens). */
@@ -87,8 +94,12 @@ export interface YamlEditor {
   update(content: string): void
   updateProps(props: Partial<YamlEditorProps>): void
   getMode(): YamlEditorMode
-  /** False when refused (tree or form mode while the text has syntax errors). */
+  /** False when refused: a mode not in `modes`, or tree / form while the text has syntax errors. */
   setMode(mode: YamlEditorMode): boolean
+  /** The views offered (`modes`), for a host that draws its own buttons. */
+  getModes(): YamlEditorMode[]
+  /** Would setMode(mode) be accepted now? */
+  canSetMode(mode: YamlEditorMode): boolean
   status(): YamlEditorStatus
   /** Show the entry at a path: its line in text mode, its field in tree mode. */
   revealPath(path: YamlPath): void
@@ -104,7 +115,19 @@ export function createYamlEditor({ target, props = {} }: { target: HTMLElement; 
   let problems: YamlProblem[] = []
   /** The warnings of lintYaml, first in `problems`, marked at their own span. */
   let lints: YamlLint[] = []
-  let mode: YamlEditorMode = p.mode ?? (p.schema ? 'form' : 'tree')
+  const ALL_MODES: YamlEditorMode[] = ['text', 'tree', 'form']
+  /** The modes offered: `modes` as given (known ones, once each), else all. */
+  const allowed = (): YamlEditorMode[] => {
+    const list = [...new Set((p.modes ?? []).filter((m) => ALL_MODES.includes(m)))]
+    return list.length ? list : ALL_MODES
+  }
+  /** The view to fall back on: a structured one when offered (form first with a schema, tree first without), else text. */
+  const defaultMode = (): YamlEditorMode => {
+    const offered = allowed()
+    const order: YamlEditorMode[] = p.schema ? ['form', 'tree', 'text'] : ['tree', 'form', 'text']
+    return order.find((m) => offered.includes(m))!
+  }
+  let mode: YamlEditorMode = p.mode && allowed().includes(p.mode) ? p.mode : defaultMode()
   if (parsed.errors.length) mode = 'text'
 
   const root = document.createElement('div')
@@ -129,9 +152,8 @@ export function createYamlEditor({ target, props = {} }: { target: HTMLElement; 
   root.append(menu, body)
   target.appendChild(root)
 
-  const MODES = ['text', 'tree', 'form'] as const
   const tabs = {} as Record<YamlEditorMode, HTMLButtonElement>
-  for (const m of MODES) {
+  for (const m of ALL_MODES) {
     tabs[m] = document.createElement('button')
     const tab = tabs[m]
     tab.type = 'button'
@@ -185,8 +207,12 @@ export function createYamlEditor({ target, props = {} }: { target: HTMLElement; 
     root.classList.toggle('vye-readonly', !!p.readOnly)
     root.dataset.mode = mode
     menu.hidden = p.mainMenuBar === false
+    // The buttons of the modes offered, in their order
+    const offered = allowed()
+    modes.replaceChildren(...offered.map((m) => tabs[m]))
+    modes.hidden = p.modeSwitch === false || offered.length < 2
     modes.setAttribute('aria-label', labels.modes)
-    for (const m of MODES) {
+    for (const m of ALL_MODES) {
       tabs[m].textContent = labels[m]
       tabs[m].setAttribute('aria-selected', String(mode === m))
       tabs[m].classList.toggle('vye-tab-active', mode === m)
@@ -253,10 +279,23 @@ export function createYamlEditor({ target, props = {} }: { target: HTMLElement; 
     })
   }
 
+  /** Show another view and tell (no checks: see setMode). */
+  function switchTo(next: YamlEditorMode) {
+    if (next === mode) return
+    mode = next
+    renderChrome()
+    renderTree()
+    p.onChangeMode?.(mode)
+  }
+
   /** After the text changed: parse, check, redraw, tell. */
   function refresh(notify: boolean) {
     parsed = parseYaml(text)
     problems = computeProblems()
+    // A text that does not parse shows as text, the only way to fix it; once it
+    // parses, back to an offered view if the text view is not one
+    if (parsed.errors.length && mode !== 'text') switchTo('text')
+    else if (!parsed.errors.length && !allowed().includes(mode)) switchTo(defaultMode())
     renderChrome()
     renderMarkers()
     renderTree()
@@ -282,22 +321,23 @@ export function createYamlEditor({ target, props = {} }: { target: HTMLElement; 
       if (next.readOnly !== undefined && next.readOnly !== before.readOnly) textMode.setReadOnly(!!p.readOnly)
       if (next.content !== undefined && next.content !== text) return api.update(next.content)
       if (next.mode && next.mode !== mode) api.setMode(next.mode)
+      // The current view no longer offered: the default one (refresh does it, or keeps the text while it does not parse)
       refresh(false)
     },
     getMode: () => mode,
     setMode(next) {
       if (next === mode) return true
+      if (!allowed().includes(next)) return false
       if (next !== 'text' && parsed.errors.length) {
         status.textContent = labels.syntaxBlocked
         textMode.reveal(parsed.errors[0].from)
         return false
       }
-      mode = next
-      renderChrome()
-      renderTree()
-      p.onChangeMode?.(mode)
+      switchTo(next)
       return true
     },
+    getModes: () => [...allowed()],
+    canSetMode: (next) => allowed().includes(next) && (next === 'text' || !parsed.errors.length),
     status: currentStatus,
     revealPath(path) {
       if (mode === 'text' || parsed.errors.length) {

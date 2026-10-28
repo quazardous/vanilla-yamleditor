@@ -149,6 +149,52 @@ describe('createYamlEditor', () => {
   })
 })
 
+describe('modes', () => {
+  const tabs = (target: HTMLElement) => [...target.querySelectorAll<HTMLElement>('.vye-modes .vye-tab')].map((t) => t.textContent)
+
+  it('offers only the modes given, in their order', () => {
+    const { target, editor } = mount({ modes: ['form', 'text'] })
+    expect(tabs(target)).toEqual(['Form', 'Text'])
+    expect(editor.getModes()).toEqual(['form', 'text'])
+    expect(editor.getMode()).toBe('form')
+    expect(editor.canSetMode('tree')).toBe(false)
+    expect(editor.setMode('tree')).toBe(false)
+    expect(editor.getMode()).toBe('form')
+    expect(editor.setMode('text')).toBe(true)
+  })
+
+  it('the default view comes from the modes offered', () => {
+    expect(mount({ schema: undefined, modes: ['text', 'form'] }).editor.getMode()).toBe('form')
+    editor!.destroy()
+    expect(mount({ modes: ['text', 'tree'] }).editor.getMode()).toBe('tree')
+    editor!.destroy()
+    expect(mount({ mode: 'tree', modes: ['text', 'form'] }).editor.getMode()).toBe('form')
+  })
+
+  it('modeSwitch: false hides the buttons, the status stays; one mode hides them too', () => {
+    const { target, editor } = mount({ modeSwitch: false })
+    expect(target.querySelector<HTMLElement>('.vye-modes')!.hidden).toBe(true)
+    expect(target.querySelector<HTMLElement>('.vye-menu')!.hidden).toBe(false)
+    // Driven by code
+    expect(editor.setMode('text')).toBe(true)
+    editor.updateProps({ modeSwitch: true, modes: ['form'] })
+    expect(target.querySelector<HTMLElement>('.vye-modes')!.hidden).toBe(true)
+    expect(editor.getMode()).toBe('form')
+  })
+
+  it('a text that does not parse shows as text, even when text is not offered; back once it parses', () => {
+    const onChangeMode = vi.fn()
+    const { editor } = mount({ modes: ['form'], onChangeMode })
+    expect(editor.canSetMode('text')).toBe(false)
+    editor.update('a: [1\n')
+    expect(editor.getMode()).toBe('text')
+    expect(editor.canSetMode('form')).toBe(false)
+    editor.update(CONTENT)
+    expect(editor.getMode()).toBe('form')
+    expect(onChangeMode.mock.calls.map((c) => c[0])).toEqual(['text', 'form'])
+  })
+})
+
 describe('tree mode', () => {
   it('is the default without a schema; form stays one click away', () => {
     const { target, editor } = mount({ schema: undefined })
