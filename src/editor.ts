@@ -5,10 +5,10 @@
  * the tree and form modes edit it through model.ts patches. Switching to them
  * is refused while the text has syntax errors, which then show at their line.
  */
-import { YamlEditError, cssPath, locate, parseYaml, pathKey, rangeAt, toPath, type ParsedYaml, type YamlPath, type YamlSyntaxError } from './model'
+import { YamlEditError, cssPath, lintYaml, locate, parseYaml, pathKey, rangeAt, toPath, type ParsedYaml, type YamlLint, type YamlPath, type YamlSyntaxError } from './model'
 import { defaultSchemaMessages, validate, type JsonSchema, type SchemaMessages, type YamlProblem, type YamlProblemInput } from './schema'
 import { TextMode, type TextMarker } from './text-mode'
-import { TreeMode, type TreeLabels } from './tree-mode'
+import { TreeMode, type TreeLabels, type TreeProblem } from './tree-mode'
 
 export type YamlEditorMode = 'text' | 'tree' | 'form'
 
@@ -19,6 +19,10 @@ export interface YamlEditorLabels extends TreeLabels {
   modes: string
   syntaxBlocked: string
   syntaxErrors: (n: number) => string
+  warnings: (n: number) => string
+  /** `truc ::` is the key `truc :`. */
+  colonKey: (key: string, suggestion: string) => string
+  spacedKey: (key: string) => string
 }
 
 export const defaultLabels: YamlEditorLabels = {
@@ -28,6 +32,9 @@ export const defaultLabels: YamlEditorLabels = {
   modes: 'View',
   syntaxBlocked: 'Fix the syntax errors before switching to the tree or form view',
   syntaxErrors: (n) => (n === 1 ? '1 syntax error' : `${n} syntax errors`),
+  warnings: (n) => (n === 1 ? '1 warning' : `${n} warnings`),
+  colonKey: (key, suggestion) => `The key is "${key}": did you mean "${suggestion}:"?`,
+  spacedKey: (key) => `The key "${key}" starts or ends with a space`,
   addItem: 'Add item',
   addKey: 'Add',
   newKey: 'new key',
@@ -57,6 +64,8 @@ export interface YamlEditorProps {
   validator?: (value: unknown, parsed: ParsedYaml) => YamlProblemInput[]
   /** Problems found elsewhere (a server check): shown like the others. */
   problems?: YamlProblemInput[]
+  /** Warn on valid YAML that is likely a typo, such as `key ::`. Default true. */
+  lint?: boolean
   readOnly?: boolean
   /** Show the mode switch. Default true. */
   mainMenuBar?: boolean
@@ -93,6 +102,8 @@ export function createYamlEditor({ target, props = {} }: { target: HTMLElement; 
   let text = p.content ?? ''
   let parsed = parseYaml(text)
   let problems: YamlProblem[] = []
+  /** The warnings of lintYaml, first in `problems`, marked at their own span. */
+  let lints: YamlLint[] = []
   let mode: YamlEditorMode = p.mode ?? (p.schema ? 'form' : 'tree')
   if (parsed.errors.length) mode = 'text'
 
@@ -144,8 +155,16 @@ export function createYamlEditor({ target, props = {} }: { target: HTMLElement; 
   function computeProblems(): YamlProblem[] {
     // Paths from a validator or a server may come as strings
     const outside = (list: YamlProblemInput[] | undefined): YamlProblem[] => (list ?? []).map((pb) => ({ ...pb, path: toPath(pb.path) }))
+    lints = []
     if (parsed.errors.length) return outside(p.problems)
     const out: YamlProblem[] = []
+    if (p.lint !== false) {
+      lints = lintYaml(parsed.doc)
+      for (const lint of lints) {
+        const message = lint.kind === 'colonKey' ? labels.colonKey(lint.key, lint.suggestion!) : labels.spacedKey(lint.key)
+        out.push({ path: lint.path, message, severity: 'warning' })
+      }
+    }
     if (p.schema) out.push(...validate(parsed.value, p.schema, { ...defaultSchemaMessages, ...p.schemaMessages }))
     if (p.validator) {
       try {
@@ -177,8 +196,10 @@ export function createYamlEditor({ target, props = {} }: { target: HTMLElement; 
       tabs[m].setAttribute('aria-disabled', String(blocked))
       tabs[m].title = blocked ? labels.syntaxBlocked : ''
     }
-    status.textContent = blocked ? labels.syntaxErrors(parsed.errors.length) : ''
+    const warnings = blocked ? 0 : problems.filter((pb) => pb.severity === 'warning').length
+    status.textContent = blocked ? labels.syntaxErrors(parsed.errors.length) : warnings ? labels.warnings(warnings) : ''
     status.classList.toggle('vye-status-error', blocked)
+    status.classList.toggle('vye-status-warning', !blocked && warnings > 0)
     textHost.hidden = mode !== 'text'
     treeHost.hidden = mode === 'text'
   }
@@ -186,7 +207,9 @@ export function createYamlEditor({ target, props = {} }: { target: HTMLElement; 
   function renderMarkers() {
     const markers: TextMarker[] = parsed.errors.map((e) => ({ from: e.from, to: e.to, message: e.message, severity: 'error' }))
     if (!parsed.errors.length) {
-      for (const problem of problems) {
+      // A suspicious key: underline the key itself
+      lints.forEach((lint, i) => markers.push({ from: lint.from, to: lint.to, message: problems[i].message, severity: 'warning' }))
+      for (const problem of problems.slice(lints.length)) {
         const range = rangeAt(parsed.doc, problem.path)
         markers.push({ from: range?.from ?? 0, to: range?.to ?? 0, message: problem.message, severity: problem.severity ?? 'error' })
       }
@@ -197,14 +220,14 @@ export function createYamlEditor({ target, props = {} }: { target: HTMLElement; 
   function renderTree() {
     if (mode === 'text' || parsed.errors.length) return
     // A problem on a missing entry shows on its deepest existing parent, naming what is missing
-    const byPath = new Map<string, string[]>()
+    const byPath = new Map<string, TreeProblem[]>()
     for (const problem of problems) {
       let depth = problem.path.length
       while (depth > 0 && !locate(parsed.doc, problem.path.slice(0, depth))) depth--
       const key = pathKey(problem.path.slice(0, depth))
       const missing = problem.path.slice(depth)
       const message = missing.length ? `${pathKey(missing)}: ${problem.message}` : problem.message
-      byPath.set(key, [...(byPath.get(key) ?? []), message])
+      byPath.set(key, [...(byPath.get(key) ?? []), { message, severity: problem.severity ?? 'error' }])
     }
     treeMode.render({
       variant: mode,

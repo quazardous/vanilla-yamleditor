@@ -121,6 +121,10 @@
   color: var(--vye-error);
 }
 
+.vye-status-warning {
+  color: var(--vye-warning);
+}
+
 /* Body */
 .vye-body {
   flex: 1;
@@ -353,6 +357,17 @@
 .vye-invalid > .vye-entry-head .vye-input,
 .vye-invalid > .vye-entry-head .vye-key-input {
   border-color: var(--vye-error);
+}
+
+/* A warning: valid, but likely a typo */
+.vye-problem-warning {
+  color: var(--vye-warning);
+}
+
+.vye-warned > .vye-entry-head .vye-key,
+.vye-warned > .vye-entry-head .vye-key-input {
+  text-decoration: underline wavy var(--vye-warning);
+  text-underline-offset: 3px;
 }
 
 .vye-add-row {

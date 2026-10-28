@@ -24,6 +24,7 @@ export {
   addKey,
   commentAt,
   deleteAt,
+  lintYaml,
   parseYaml,
   pathKey,
   rangeAt,
@@ -33,6 +34,7 @@ export {
   valueAt,
   YamlEditError,
   type ParsedYaml,
+  type YamlLint,
   type YamlPath,
   type YamlSyntaxError,
 } from './model'

@@ -414,6 +414,45 @@ export function isAliasAt(doc: Document, path: YamlPath): boolean {
 }
 
 /** The comment written with the entry at a path: the lines above it and its end-of-line comment. */
+/** Valid YAML that is most likely a typo. */
+export interface YamlLint {
+  kind: 'colonKey' | 'spacedKey'
+  path: YamlPath
+  key: string
+  /** colonKey: the key as probably meant. */
+  suggestion?: string
+  /** The key's span in the text. */
+  from: number
+  to: number
+}
+
+/**
+ * Keys that parse but were hardly meant: `truc ::` is the key `truc :` (a `:`
+ * only ends a key before a space or the end of the line), and a quoted key
+ * with spaces around it.
+ */
+export function lintYaml(doc: Document): YamlLint[] {
+  const out: YamlLint[] = []
+  const walk = (node: unknown, path: YamlPath) => {
+    if (isMap(node)) {
+      for (const pair of node.items) {
+        const key = pair.key
+        if (isScalar(key) && typeof key.value === 'string' && key.range) {
+          const k = key.value
+          const at = { path: [...path, k], key: k, from: key.range[0], to: key.range[1] }
+          if (key.type === Scalar.PLAIN && /:$/.test(k)) out.push({ kind: 'colonKey', suggestion: k.replace(/[\s:]+$/, ''), ...at })
+          else if (key.type !== Scalar.PLAIN && k !== k.trim()) out.push({ kind: 'spacedKey', ...at })
+        }
+        walk(pair.value, [...path, String(keyOf(key))])
+      }
+    } else if (isSeq(node)) {
+      node.items.forEach((item, i) => walk(item, [...path, i]))
+    }
+  }
+  walk(doc.contents, [])
+  return out
+}
+
 export function commentAt(doc: Document, path: YamlPath): string | null {
   const loc = locate(doc, path)
   if (!loc) return null

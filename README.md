@@ -41,6 +41,7 @@ The API follows [vanilla-jsoneditor](https://github.com/josdejong/svelte-jsonedi
 | `schema` | a JSON Schema, see below: the tree and form controls and the built-in validation |
 | `validator` | `(value, parsed) => [{ path, message }]`: extra checks |
 | `problems` | `[{ path, message, severity? }]` found elsewhere (a server check), shown like the others |
+| `lint` | warn on valid YAML that is likely a typo (default `true`), see below |
 | `readOnly` | no editing in any mode |
 | `mainMenuBar` | show the mode switch (default `true`) |
 | `labels` | the interface texts, to translate |
@@ -49,6 +50,8 @@ The API follows [vanilla-jsoneditor](https://github.com/josdejong/svelte-jsonedi
 | `onChange` | `(text, status)` after each edit by the user |
 | `onChangeMode` | `(mode)` |
 | `onError` | `(error)`: a refused edit, such as renaming a key to one that exists |
+
+Besides syntax errors, the editor warns (`severity: 'warning'`, in `status().problems`, never blocking) on valid YAML that was hardly meant: `port :: 8080` is the key `port :`, since a `:` only ends a key before a space or the end of the line; a quoted key with spaces around it. The messages are in `labels` (`colonKey`, `spacedKey`).
 
 Switching to the tree or form mode is refused while the text has syntax errors: the editor stays on the text and shows them.
 

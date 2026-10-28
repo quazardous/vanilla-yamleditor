@@ -185,6 +185,33 @@ describe('tree mode', () => {
   })
 })
 
+describe('warnings', () => {
+  it('flags a key that is valid but likely a typo, without blocking', () => {
+    const { target, editor } = mount({ schema: undefined, content: 'truc ::\nok: 1\n" x": 2\n' })
+    const problems = editor.status().problems
+    expect(problems).toEqual([
+      { path: ['truc :'], message: 'The key is "truc :": did you mean "truc:"?', severity: 'warning' },
+      { path: [' x'], message: 'The key " x" starts or ends with a space', severity: 'warning' },
+    ])
+    expect(editor.getMode()).toBe('tree')
+    const row = target.querySelector<HTMLElement>('[data-path="truc :"]')!
+    expect(row.classList.contains('vye-warned')).toBe(true)
+    expect(row.classList.contains('vye-invalid')).toBe(false)
+    expect(row.querySelector('.vye-problem-warning')!.textContent).toBe(problems[0].message)
+    expect(target.querySelector('.vye-status')!.textContent).toBe('2 warnings')
+    expect(target.querySelector('.vye-status')!.classList.contains('vye-status-warning')).toBe(true)
+  })
+
+  it('leaves real colons alone, and can be turned off', () => {
+    const { editor } = mount({ schema: undefined, content: 'a::b: 1\nurl: http://x\nlist:\n  - k: v\n' })
+    expect(editor.status().problems).toEqual([])
+    editor.update('truc ::\n')
+    expect(editor.status().problems).toHaveLength(1)
+    editor.updateProps({ lint: false })
+    expect(editor.status().problems).toEqual([])
+  })
+})
+
 describe('an empty document', () => {
   it('offers to start it instead of a null field, in tree and form', () => {
     const { target, editor } = mount({ schema: undefined, content: '' })

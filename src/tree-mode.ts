@@ -27,12 +27,20 @@ export interface TreeLabels {
 
 export type TreeVariant = 'tree' | 'form'
 
+export interface TreeProblem {
+  message: string
+  severity: 'error' | 'warning'
+}
+
+const problemEl = (pb: TreeProblem, cls = '') =>
+  el('div', `vye-problem${pb.severity === 'warning' ? ' vye-problem-warning' : ''}${cls}`, { role: pb.severity === 'warning' ? 'status' : 'alert' }, pb.message)
+
 export interface TreeContext {
   variant: TreeVariant
   parsed: ParsedYaml
   schema?: JsonSchema
-  /** Problem messages by path key. */
-  problems: Map<string, string[]>
+  /** Problems by path key; warnings do not mark the entry invalid. */
+  problems: Map<string, TreeProblem[]>
   readOnly: boolean
   labels: TreeLabels
   /** Turn a schema `title` into the text shown (i18n tokens). */
@@ -87,7 +95,7 @@ export class TreeMode {
 
     this.root.replaceChildren()
     // Problems on the document itself
-    for (const message of ctx.problems.get('') ?? []) this.root.appendChild(el('div', 'vye-problem vye-problem-root', { role: 'alert' }, message))
+    for (const pb of ctx.problems.get('') ?? []) this.root.appendChild(problemEl(pb, ' vye-problem-root'))
     const value = ctx.parsed.value
     if (ctx.parsed.doc.contents == null) {
       // An empty document (or only comments): a way to start it, not a `null` field
@@ -176,7 +184,8 @@ export class TreeMode {
     const { problems, labels, translate, parsed } = this.ctx
     const id = pathKey(path)
     const messages = problems.get(id) ?? []
-    const row = el('div', `vye-entry${messages.length ? ' vye-invalid' : ''}`, { 'data-path': id, role: 'treeitem' })
+    const flag = messages.some((pb) => pb.severity === 'error') ? ' vye-invalid' : messages.length ? ' vye-warned' : ''
+    const row = el('div', `vye-entry${flag}`, { 'data-path': id, role: 'treeitem' })
     const head = el('div', 'vye-entry-head')
     row.appendChild(head)
 
@@ -240,7 +249,7 @@ export class TreeMode {
       const hint = [schema?.description ? translate(schema.description) : null, comment].filter(Boolean).join(' — ')
       if (hint) row.appendChild(el('div', 'vye-hint', {}, hint))
     }
-    for (const message of messages) row.appendChild(el('div', 'vye-problem', { role: 'alert' }, message))
+    for (const pb of messages) row.appendChild(problemEl(pb))
 
     if (collection && isOpen && !isAliasAt(parsed.doc, path)) row.appendChild(this.renderChildren(value, path, schema))
     return row
