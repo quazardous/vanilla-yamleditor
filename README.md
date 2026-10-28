@@ -1,4 +1,4 @@
-# vanilla-yamleditor
+# <img src="docs/logo.svg" alt="" width="40" align="center"> vanilla-yamleditor
 
 [![demo](https://img.shields.io/badge/demo-yamleditor.davidberlioz.net-3b82f6)](https://yamleditor.davidberlioz.net)
 
