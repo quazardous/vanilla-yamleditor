@@ -583,3 +583,10 @@
   border-color: transparent;
   text-decoration: underline wavy var(--vye-error);
 }
+
+/* A deprecated entry (schema `deprecated: true`): struck through, even under its warning */
+.vye-deprecated,
+.vye-warned > .vye-entry-head .vye-key.vye-deprecated {
+  text-decoration: line-through;
+  opacity: 0.75;
+}

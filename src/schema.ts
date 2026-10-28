@@ -7,7 +7,12 @@
  * title, description, minimum / maximum / exclusiveMinimum / exclusiveMaximum,
  * multipleOf, minLength / maxLength / pattern, format: 'textarea',
  * properties / required / additionalProperties, items / minItems / maxItems,
- * and local $ref (#/$defs/…, #/definitions/…).
+ * readOnly, deprecated, examples, local $ref (#/$defs/…, #/definitions/…).
+ *
+ * Labelled choices: `oneOf` / `anyOf` of `{ const, title }`, or `enum` with a
+ * parallel `x-enumLabels`. Variants: `allOf` (merged), `if` / `then` / `else`,
+ * and `oneOf` / `anyOf` of object schemas, picked by `discriminator.propertyName`
+ * (OpenAPI style) or else by the first branch the value matches: see effective().
  */
 import type { YamlPath } from './model'
 
@@ -39,7 +44,26 @@ export interface JsonSchema {
   minItems?: number
   maxItems?: number
   readOnly?: boolean
+  deprecated?: boolean
+  examples?: unknown[]
+  /** Labels for `enum`, in the same order. */
+  'x-enumLabels'?: string[]
+  allOf?: JsonSchema[]
+  anyOf?: JsonSchema[]
+  oneOf?: JsonSchema[]
+  if?: JsonSchema
+  then?: JsonSchema
+  else?: JsonSchema
+  /** For oneOf / anyOf: the property whose `const` names the branch. */
+  discriminator?: { propertyName: string }
   [key: string]: unknown
+}
+
+/** A value a field can take, with its label. */
+export interface Choice {
+  value: unknown
+  title?: string
+  description?: string
 }
 
 export interface YamlProblem {
@@ -68,6 +92,10 @@ export interface SchemaMessages {
   additional: (key: string) => string
   minItems: (n: number) => string
   maxItems: (n: number) => string
+  /** No branch of a oneOf / anyOf matches; `variants` are their titles. */
+  oneOf: (variants: string) => string
+  /** A warning: the entry is there but deprecated. */
+  deprecated: (key: string) => string
 }
 
 export const defaultSchemaMessages: SchemaMessages = {
@@ -86,6 +114,8 @@ export const defaultSchemaMessages: SchemaMessages = {
   additional: (k) => `"${k}" is not allowed here`,
   minItems: (n) => `At least ${n} items`,
   maxItems: (n) => `At most ${n} items`,
+  oneOf: (v) => `Must match one of: ${v}`,
+  deprecated: (k) => `"${k}" is deprecated`,
 }
 
 function resolve(schema: JsonSchema | undefined, root: JsonSchema): JsonSchema | undefined {
@@ -121,17 +151,112 @@ const matchesType = (value: unknown, t: JsonSchemaType) => {
 }
 
 const show = (v: unknown) => JSON.stringify(v)
+const isObject = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v)
 
-/** The schema of the value at a path, $refs resolved; undefined when the schema says nothing there. */
-export function schemaAt(root: JsonSchema | undefined, path: YamlPath): JsonSchema | undefined {
+/** The choices of a field: its enum (labelled by x-enumLabels), or a oneOf / anyOf of consts. Null when it is free. */
+export function choicesOf(schema: JsonSchema | undefined): Choice[] | null {
+  if (!schema) return null
+  if (schema.enum) {
+    const labels = schema['x-enumLabels']
+    return schema.enum.map((value, i) => ({ value, title: Array.isArray(labels) ? labels[i] : undefined }))
+  }
+  const branches = schema.oneOf ?? schema.anyOf
+  if (branches?.length && branches.every((b) => b?.const !== undefined)) return branches.map((b) => ({ value: b.const, title: b.title, description: b.description }))
+  return null
+}
+
+/** Two schemas as one: b's keywords win, but a keeps its title and help (a branch's names its variant), properties merged, required joined. */
+function merge(a: JsonSchema, b: JsonSchema): JsonSchema {
+  const out: JsonSchema = { ...a, ...b, title: a.title ?? b.title, description: a.description ?? b.description }
+  if (out.title === undefined) delete out.title
+  if (out.description === undefined) delete out.description
+  if (a.properties || b.properties) {
+    out.properties = { ...a.properties }
+    for (const [key, prop] of Object.entries(b.properties ?? {})) out.properties[key] = a.properties?.[key] ? { ...a.properties[key], ...prop } : prop
+  }
+  if (a.required || b.required) out.required = [...new Set([...(a.required ?? []), ...(b.required ?? [])])]
+  return out
+}
+
+/** A variant's schema without its title and help: they name the variant, not the field. */
+const unnamed = (s: JsonSchema | undefined): JsonSchema => {
+  const { title: _t, description: _d, ...rest } = s ?? {}
+  return rest
+}
+
+/** Set by effective() when no branch of a oneOf / anyOf fits the value: their titles, for the message. */
+const NO_VARIANT = 'x-noVariant'
+
+/** The value a branch gives its discriminator. */
+function tagOf(branch: JsonSchema, prop: string, root: JsonSchema): unknown {
+  const s = resolve(branch.properties?.[prop], root)
+  return s?.const !== undefined ? s.const : s?.enum?.[0]
+}
+
+/**
+ * The schema that applies to a value: $ref resolved, allOf merged, the then or
+ * else of an if, and the branch of a oneOf / anyOf: the one its discriminator
+ * names, else the first the value matches. The discriminator itself becomes a
+ * choice between the branches. A oneOf of consts stays as it is: a choice list.
+ */
+export function effective(schema: JsonSchema | undefined, value: unknown, root: JsonSchema, depth = 0): JsonSchema | undefined {
+  const s = resolve(schema, root)
+  if (!s || depth > 16) return s
+  const { allOf, anyOf, oneOf, if: cond, then: yes, else: no, discriminator, ...base } = s
+  if (!allOf && !anyOf && !oneOf && !cond) return s
+  // Kept on the result, so it can be made effective again for another value (defaultFor, schemaAt)
+  const variants: JsonSchema = Object.fromEntries(Object.entries({ allOf, anyOf, oneOf, if: cond, then: yes, else: no, discriminator }).filter(([, v]) => v !== undefined))
+  let out: JsonSchema = base
+  for (const part of allOf ?? []) out = merge(out, effective(part, value, root, depth + 1) ?? {})
+  if (cond) {
+    const branch = matches(value, cond, root) ? yes : no
+    if (branch) out = merge(out, unnamed(effective(branch, value, root, depth + 1)))
+  }
+  const branches = (oneOf ?? anyOf ?? []).map((b) => resolve(b, root)).filter((b): b is JsonSchema => !!b)
+  if (!branches.length) return { ...out, ...variants }
+  if (branches.every((b) => b.const !== undefined)) return { ...out, ...variants }
+
+  const prop = discriminator?.propertyName
+  const pick = prop
+    ? branches.find((b) => isObject(value) && show(tagOf(b, prop, root)) === show(value[prop]))
+    : branches.find((b) => matches(value, b, root))
+  if (pick) out = merge(out, unnamed(effective(pick, value, root, depth + 1)))
+  if (prop) {
+    // The discriminator: a choice of every branch, labelled by the branch's title
+    const choice: JsonSchema = { oneOf: branches.map((b) => ({ const: tagOf(b, prop, root), title: b.title, description: b.description })).filter((c) => c.const !== undefined) }
+    const { const: _c, enum: _e, ...current } = out.properties?.[prop] ?? {}
+    out = { ...out, properties: { ...out.properties, [prop]: { ...current, ...choice } }, required: [...new Set([...(out.required ?? []), prop])] }
+  } else if (!pick) {
+    out = { ...out, [NO_VARIANT]: branches.map((b, i) => b.title ?? `#${i + 1}`) }
+  }
+  return { ...out, ...variants }
+}
+
+/** Does a value pass a schema? (for if, and for picking a branch) */
+function matches(value: unknown, schema: JsonSchema, root: JsonSchema): boolean {
+  const problems: YamlProblem[] = []
+  check(value, schema, root, defaultSchemaMessages, [], problems)
+  return !problems.some((p) => p.severity !== 'warning')
+}
+
+const childOf = (value: unknown, seg: string | number) => (value !== null && typeof value === 'object' ? (value as Record<string | number, unknown>)[seg] : undefined)
+
+/**
+ * The schema of the value at a path, $refs resolved and variants picked from
+ * `value` (the whole document) when given; undefined when the schema says
+ * nothing there.
+ */
+export function schemaAt(root: JsonSchema | undefined, path: YamlPath, value?: unknown): JsonSchema | undefined {
   if (!root) return undefined
-  let s = resolve(root, root)
+  let v = value
+  let s = effective(root, v, root)
   for (const seg of path) {
     if (!s) return undefined
-    if (typeof seg === 'number') s = resolve(s.items, root)
+    v = childOf(v, seg)
+    if (typeof seg === 'number') s = effective(s.items, v, root)
     else {
       const prop = s.properties?.[seg]
-      s = resolve(prop ?? (typeof s.additionalProperties === 'object' ? s.additionalProperties : undefined), root)
+      s = effective(prop ?? (typeof s.additionalProperties === 'object' ? s.additionalProperties : undefined), v, root)
     }
   }
   return s
@@ -139,17 +264,24 @@ export function schemaAt(root: JsonSchema | undefined, path: YamlPath): JsonSche
 
 /** The value a new entry starts with: the schema's default, else an empty value of its type. */
 export function defaultFor(schema: JsonSchema | undefined, root?: JsonSchema): unknown {
-  const s = root ? resolve(schema, root) : schema
+  const top = root ?? schema ?? {}
+  const s = effective(schema, undefined, top)
   if (!s) return ''
   if (s.default !== undefined) return structuredClone(s.default)
   if (s.const !== undefined) return s.const
-  if (s.enum?.length) return s.enum[0]
-  const t = typesOf(s).find((x) => x !== 'null') ?? typesOf(s)[0]
+  const choices = choicesOf(s)
+  if (choices?.length) return choices[0].value
+  const objectLike = !!(s.properties || s.required || s.discriminator || s.oneOf || s.anyOf)
+  const t = typesOf(s).find((x) => x !== 'null') ?? typesOf(s)[0] ?? (objectLike ? 'object' : undefined)
   switch (t) {
     case 'object': {
-      // Required properties come along, so the new entry is valid as far as it can be
+      // Required properties come along, so the new entry is valid as far as it can be;
+      // a second pass adds those of the variant the first one chose (its discriminator)
       const out: Record<string, unknown> = {}
-      for (const key of s.required ?? []) out[key] = defaultFor(s.properties?.[key], root)
+      for (let pass = 0; pass < 2; pass++) {
+        const now = effective(schema, out, top) ?? {}
+        for (const key of now.required ?? []) if (!(key in out)) out[key] = defaultFor(now.properties?.[key], top)
+      }
       return out
     }
     case 'array':
@@ -169,15 +301,24 @@ export function defaultFor(schema: JsonSchema | undefined, root?: JsonSchema): u
 /** Check a value against a schema; every problem carries the path of the value at fault. */
 export function validate(value: unknown, root: JsonSchema, messages: SchemaMessages = defaultSchemaMessages): YamlProblem[] {
   const problems: YamlProblem[] = []
-  const walk = (v: unknown, schema: JsonSchema | undefined, path: YamlPath) => {
-    const s = resolve(schema, root)
+  check(value, root, root, { ...defaultSchemaMessages, ...messages }, [], problems)
+  return problems
+}
+
+function check(value: unknown, schema: JsonSchema, root: JsonSchema, messages: SchemaMessages, at: YamlPath, problems: YamlProblem[]): void {
+  const walk = (v: unknown, sub: JsonSchema | undefined, path: YamlPath) => {
+    const s = effective(sub, v, root)
     if (!s) return
+    if (s.deprecated && path.length) problems.push({ path, message: messages.deprecated(String(path[path.length - 1])), severity: 'warning' })
     const types = typesOf(s)
     if (types.length && !types.some((t) => matchesType(v, t))) {
       problems.push({ path, message: messages.type(types.join(' | ')) })
       return
     }
-    if (s.enum && !s.enum.some((e) => show(e) === show(v))) problems.push({ path, message: messages.enum(s.enum.map(show).join(', ')) })
+    const variants = s[NO_VARIANT] as string[] | undefined
+    if (variants) problems.push({ path, message: messages.oneOf(variants.join(', ')) })
+    const choices = choicesOf(s)
+    if (choices && !choices.some((c) => show(c.value) === show(v))) problems.push({ path, message: messages.enum(choices.map((c) => show(c.value)).join(', ')) })
     if (s.const !== undefined && show(s.const) !== show(v)) problems.push({ path, message: messages.const(show(s.const)) })
     if (typeof v === 'number') {
       if (s.minimum !== undefined && v < s.minimum) problems.push({ path, message: messages.minimum(s.minimum) })
@@ -212,6 +353,5 @@ export function validate(value: unknown, root: JsonSchema, messages: SchemaMessa
       }
     }
   }
-  walk(value, root, [])
-  return problems
+  walk(value, schema, at)
 }

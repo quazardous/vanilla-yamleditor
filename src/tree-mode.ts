@@ -12,7 +12,7 @@
  * comments and formatting stay.
  */
 import { addItem, addKey, commentAt, cssPath, deleteAt, isAliasAt, pathKey, renameKey, setValue, type ParsedYaml, type YamlPath } from './model'
-import { defaultFor, schemaAt, typesOf, valueType, type JsonSchema, type JsonSchemaType } from './schema'
+import { choicesOf, defaultFor, schemaAt as schemaAtIn, typesOf, valueType, type JsonSchema, type JsonSchemaType } from './schema'
 
 export interface TreeLabels {
   addItem: string
@@ -69,6 +69,9 @@ function fitWidth(input: HTMLInputElement) {
   input.addEventListener('input', fit)
 }
 
+/** The schema's first example, as an input's placeholder. */
+const example = (schema: JsonSchema | undefined) => (schema?.examples?.length ? String(schema.examples[0]) : undefined)
+
 const isObject = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v)
 const isCollection = (v: unknown) => v !== null && typeof v === 'object'
 
@@ -86,6 +89,18 @@ export class TreeMode {
     parent.appendChild(this.root)
   }
 
+  /** The schema at a path, its variants picked from the document's value. */
+  private schemaAt(path: YamlPath): JsonSchema | undefined {
+    return schemaAtIn(this.ctx.schema, path, this.ctx.parsed.value)
+  }
+
+  /** Read only here: the whole editor, or a `readOnly` schema on the path or above it. */
+  private locked(path: YamlPath): boolean {
+    if (this.ctx.readOnly) return true
+    for (let depth = path.length; depth >= 0; depth--) if (this.schemaAt(path.slice(0, depth))?.readOnly) return true
+    return false
+  }
+
   render(ctx: TreeContext): void {
     this.ctx = ctx
     this.root.className = `vye-tree vye-view-${ctx.variant}`
@@ -99,11 +114,11 @@ export class TreeMode {
     const value = ctx.parsed.value
     if (ctx.parsed.doc.contents == null) {
       // An empty document (or only comments): a way to start it, not a `null` field
-      this.root.appendChild(this.renderEmpty(schemaAt(ctx.schema, [])))
+      this.root.appendChild(this.renderEmpty(this.schemaAt([])))
     } else if (isCollection(value)) {
-      this.root.appendChild(this.renderChildren(value, [], schemaAt(ctx.schema, [])))
+      this.root.appendChild(this.renderChildren(value, [], this.schemaAt([])))
     } else {
-      this.root.appendChild(this.renderEntry(null, value, [], schemaAt(ctx.schema, []), false))
+      this.root.appendChild(this.renderEntry(null, value, [], this.schemaAt([]), false))
     }
 
     if (focus?.path !== undefined) {
@@ -114,9 +129,13 @@ export class TreeMode {
 
   private renderChildren(value: unknown, path: YamlPath, schema: JsonSchema | undefined): HTMLElement {
     const list = el('div', 'vye-children', { role: 'group' })
-    const { readOnly, labels } = this.ctx
+    const { labels } = this.ctx
+    const readOnly = this.locked(path)
     if (Array.isArray(value)) {
-      value.forEach((item, i) => list.appendChild(this.renderEntry(i, item, [...path, i], schemaAt(this.ctx.schema, [...path, i]), !readOnly)))
+      value.forEach((item, i) => {
+        const child = this.schemaAt([...path, i])
+        list.appendChild(this.renderEntry(i, item, [...path, i], child, !readOnly && !child?.readOnly))
+      })
       if (!readOnly && (schema?.maxItems === undefined || value.length < schema.maxItems)) {
         const add = el('button', 'vye-add', { type: 'button', 'data-role': 'add' }, `+ ${labels.addItem}`)
         add.addEventListener('click', () => this.ctx.edit((t) => addItem(t, path, defaultFor(schema?.items, this.ctx.schema))))
@@ -126,8 +145,9 @@ export class TreeMode {
       const required = new Set(schema?.required ?? [])
       for (const [key, item] of Object.entries(value)) {
         const declared = !!schema?.properties?.[key]
-        const child = schemaAt(this.ctx.schema, [...path, key])
-        list.appendChild(this.renderEntry(key, item, [...path, key], child, !readOnly && !required.has(key), !declared && !readOnly))
+        const child = this.schemaAt([...path, key])
+        const fixed = readOnly || !!child?.readOnly
+        list.appendChild(this.renderEntry(key, item, [...path, key], child, !fixed && !required.has(key), !declared && !fixed))
       }
       if (!readOnly) list.appendChild(this.renderAddKey(value, path, schema))
     }
@@ -217,10 +237,10 @@ export class TreeMode {
       } else if (technical) {
         // The real key; the schema's title and help on hover
         const help = [schema?.title, schema?.description].filter(Boolean).map((t) => translate(t!)).join(' — ')
-        head.appendChild(el('span', `vye-key${typeof key === 'number' ? ' vye-index' : ''}`, { title: help || undefined }, String(key)))
+        head.appendChild(el('span', `vye-key${typeof key === 'number' ? ' vye-index' : ''}${schema?.deprecated ? ' vye-deprecated' : ''}`, { title: help || undefined }, String(key)))
       } else {
         const text = typeof key === 'number' ? `${key}` : translate(schema?.title ?? key)
-        head.appendChild(el('span', `vye-key${typeof key === 'number' ? ' vye-index' : ''}`, { title: typeof key === 'string' ? key : undefined }, text))
+        head.appendChild(el('span', `vye-key${typeof key === 'number' ? ' vye-index' : ''}${schema?.deprecated ? ' vye-deprecated' : ''}`, { title: typeof key === 'string' ? key : undefined }, text))
       }
       if (technical) head.appendChild(el('span', 'vye-colon', {}, ':'))
     }
@@ -257,26 +277,32 @@ export class TreeMode {
 
   /** The input for a scalar: from the schema, else from the value's type. */
   private renderControl(value: unknown, path: YamlPath, schema: JsonSchema | undefined): HTMLElement {
-    const readOnly = this.ctx.readOnly || !!schema?.readOnly
+    const readOnly = this.locked(path)
     const set = (v: unknown) => this.ctx.edit((t) => setValue(t, path, v))
     const types = typesOf(schema)
     const nullable = types.includes('null')
     const type: JsonSchemaType = types.find((t) => t !== 'null') ?? (value === null && !types.length ? 'string' : valueType(value))
 
-    if (schema?.enum) {
+    const choices = choicesOf(schema)
+    if (choices) {
       const select = el('select', 'vye-input vye-select', { disabled: readOnly, 'data-role': 'value' })
       const current = JSON.stringify(value)
-      schema.enum.forEach((option, i) => {
-        const opt = el('option', undefined, { value: String(i) }, option === null ? 'null' : String(option))
-        if (JSON.stringify(option) === current) opt.selected = true
+      const technical = this.ctx.variant === 'tree'
+      choices.forEach((choice, i) => {
+        const raw = choice.value === null ? 'null' : String(choice.value)
+        const title = choice.title ? this.ctx.translate(choice.title) : undefined
+        // form: the label; tree: the value, its label after it
+        const text = !title ? raw : technical ? `${raw} — ${title}` : title
+        const opt = el('option', undefined, { value: String(i), title: choice.description ? this.ctx.translate(choice.description) : undefined }, text)
+        if (JSON.stringify(choice.value) === current) opt.selected = true
         select.appendChild(opt)
       })
-      if (!schema.enum.some((o) => JSON.stringify(o) === current)) {
+      if (!choices.some((c) => JSON.stringify(c.value) === current)) {
         const opt = el('option', undefined, { value: '', disabled: true }, String(value))
         opt.selected = true
         select.prepend(opt)
       }
-      select.addEventListener('change', () => select.value !== '' && set(schema.enum![Number(select.value)]))
+      select.addEventListener('change', () => select.value !== '' && set(choices[Number(select.value)].value))
       if (this.ctx.variant === 'tree') select.classList.add(`vye-t-${value === null ? 'null' : valueType(value)}`)
       return select
     }
@@ -300,7 +326,7 @@ export class TreeMode {
         max: schema?.maximum,
         step: schema?.multipleOf ?? (type === 'integer' ? 1 : 'any'),
         disabled: readOnly,
-        placeholder: nullable ? 'null' : undefined,
+        placeholder: nullable ? 'null' : example(schema),
         'data-role': 'value',
       })
       input.addEventListener('change', () => {
@@ -315,7 +341,7 @@ export class TreeMode {
     const multiline = schema?.format === 'textarea' || text.includes('\n')
     const input = multiline
       ? el('textarea', 'vye-input vye-textarea', { rows: Math.min(Math.max(text.split('\n').length, 2), 12), disabled: readOnly, 'data-role': 'value' })
-      : el('input', 'vye-input vye-string', { type: 'text', disabled: readOnly, placeholder: value === null ? 'null' : undefined, 'data-role': 'value' })
+      : el('input', 'vye-input vye-string', { type: 'text', disabled: readOnly, placeholder: value === null ? 'null' : example(schema), 'data-role': 'value' })
     input.value = text
     input.addEventListener('change', () => {
       if (input.value === '' && (nullable || (value === null && !types.length))) return set(null)

@@ -185,6 +185,64 @@ describe('tree mode', () => {
   })
 })
 
+describe('schema: choices, variants, read only', () => {
+  const S: JsonSchema = {
+    type: 'object',
+    properties: {
+      market: { title: 'Market', oneOf: [{ const: 'amazon:fr', title: 'Amazon France' }, { const: 'soko', title: 'Soko' }] },
+      id: { type: 'string', readOnly: true },
+      old: { type: 'string', deprecated: true },
+      task: {
+        type: 'object',
+        discriminator: { propertyName: 'kind' },
+        oneOf: [
+          { title: 'Cron', properties: { kind: { const: 'cron' }, schedule: { type: 'string', examples: ['*/5 * * * *'] } }, required: ['schedule'] },
+          { title: 'Export', properties: { kind: { const: 'export' }, target: { enum: ['s3', 'ftp'] } }, required: ['target'] },
+        ],
+      },
+    },
+  }
+  const CONTENT2 = 'market: soko\nid: abc\nold: x\ntask:\n  kind: cron\n  schedule: ""\n'
+  const options = (target: HTMLElement, path: string) => [...row(target, path).querySelectorAll('option')].map((o) => o.textContent)
+
+  it('labels the choices: the title in the form, value and title in the tree', () => {
+    const { target, editor } = mount({ schema: S, content: CONTENT2, translate: (t) => t.toUpperCase() })
+    expect(editor.getMode()).toBe('form')
+    expect(options(target, 'market')).toEqual(['AMAZON FRANCE', 'SOKO'])
+    editor.setMode('tree')
+    expect(options(target, 'market')).toEqual(['amazon:fr — AMAZON FRANCE', 'soko — SOKO'])
+    change(row(target, 'market').querySelector('select')!, '0')
+    expect(editor.get()).toContain('market: amazon:fr\n')
+  })
+
+  it('a readOnly field: disabled, not removable, not renamable', () => {
+    const { target } = mount({ schema: S, content: CONTENT2 })
+    expect(row(target, 'id').querySelector<HTMLInputElement>('[data-role="value"]')!.disabled).toBe(true)
+    expect(row(target, 'id').querySelector('.vye-remove')).toBeNull()
+    expect(row(target, 'old').querySelector('.vye-remove')).not.toBeNull()
+  })
+
+  it('deprecated: struck through and a warning; examples as a placeholder', () => {
+    const { target, editor } = mount({ schema: S, content: CONTENT2 })
+    expect(row(target, 'old').querySelector('.vye-key')!.classList.contains('vye-deprecated')).toBe(true)
+    expect(editor.status().problems).toContainEqual({ path: ['old'], message: '"old" is deprecated', severity: 'warning' })
+    expect(row(target, 'task.schedule').querySelector<HTMLInputElement>('[data-role="value"]')!.placeholder).toBe('*/5 * * * *')
+  })
+
+  it('switching the discriminator switches the fields', () => {
+    const { target, editor } = mount({ schema: S, content: CONTENT2 })
+    expect(options(target, 'task.kind')).toEqual(['Cron', 'Export'])
+    // The field keeps its own label (its key here); the branch's title names the variant only
+    expect(row(target, 'task').querySelector('.vye-key')!.textContent).toBe('task')
+    change(row(target, 'task.kind').querySelector('select')!, '1')
+    expect(editor.get()).toContain('  kind: export\n')
+    // The export branch now: target is required and offered, schedule is not declared any more
+    expect(editor.status().problems.map((p) => p.message)).toContain('"target" is required')
+    expect(row(target, 'task').querySelector('[data-role="add:target"]')).not.toBeNull()
+    expect(row(target, 'task').querySelector('[data-role="add:schedule"]')).toBeNull()
+  })
+})
+
 describe('warnings', () => {
   it('flags a key that is valid but likely a typo, without blocking', () => {
     const { target, editor } = mount({ schema: undefined, content: 'truc ::\nok: 1\n" x": 2\n' })

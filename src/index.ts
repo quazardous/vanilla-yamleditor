@@ -39,11 +39,14 @@ export {
   type YamlSyntaxError,
 } from './model'
 export {
+  choicesOf,
   defaultFor,
+  effective,
   defaultSchemaMessages,
   schemaAt,
   validate,
   type JsonSchema,
+  type Choice,
   type JsonSchemaType,
   type SchemaMessages,
   type YamlProblem,
