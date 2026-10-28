@@ -172,6 +172,8 @@ describe('tree mode', () => {
     expect(head('stores.paris.enabled').querySelector('.vye-comment')!.textContent).toBe('# live')
     expect(row(target, 'stores.paris.enabled').querySelector('.vye-hint')).toBeNull()
     expect(head('stores.paris.enabled').querySelector('.vye-bool')!.textContent).toBe('true')
+    // The add buttons name the keys; the form names the titles
+    expect(row(target, 'stores.paris').querySelector('[data-role="add:note"]')!.textContent).toBe('+ note')
   })
 
   it('edits in place, through the same patches', () => {
@@ -180,6 +182,36 @@ describe('tree mode', () => {
     change(row(target, 'a').querySelector<HTMLInputElement>('[data-role="value"]')!, '2')
     change(row(target, 'list[1]').querySelector<HTMLInputElement>('[data-role="value"]')!, 'z')
     expect(editor.get()).toBe('a: 2 # one\nlist: [x, z]\n')
+  })
+})
+
+describe('an empty document', () => {
+  it('offers to start it instead of a null field, in tree and form', () => {
+    const { target, editor } = mount({ schema: undefined, content: '' })
+    expect(target.querySelector('[data-role="value"]')).toBeNull()
+    expect(target.querySelector('.vye-empty')!.textContent).toBe('(empty)')
+    const input = target.querySelector<HTMLInputElement>('.vye-new-key')!
+    input.value = 'name'
+    target.querySelector<HTMLButtonElement>('[data-role="add-key"]')!.click()
+    expect(editor.get()).toBe('name: ""\n')
+    editor.set('')
+    editor.setMode('form')
+    target.querySelector<HTMLButtonElement>('[data-role="add"]')!.click()
+    expect(editor.get()).toBe('- ""\n')
+  })
+
+  it('keeps the comments of a document that has nothing else', () => {
+    const { target, editor } = mount({ schema: undefined, content: '# settings\n' })
+    target.querySelector<HTMLInputElement>('.vye-new-key')!.value = 'a'
+    target.querySelector<HTMLButtonElement>('[data-role="add-key"]')!.click()
+    expect(editor.get()).toBe('# settings\na: ""\n')
+  })
+
+  it('a schema for a map: its properties to add, by key in the tree', () => {
+    const { target } = mount({ content: '', mode: 'tree' })
+    const add = target.querySelector<HTMLButtonElement>('[data-role="add:stores"]')!
+    expect(add.textContent).toBe('+ stores')
+    expect(target.querySelector('.vye-add-row [data-role="add"]')).toBeNull()
   })
 })
 

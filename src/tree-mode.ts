@@ -89,7 +89,10 @@ export class TreeMode {
     // Problems on the document itself
     for (const message of ctx.problems.get('') ?? []) this.root.appendChild(el('div', 'vye-problem vye-problem-root', { role: 'alert' }, message))
     const value = ctx.parsed.value
-    if (isCollection(value)) {
+    if (ctx.parsed.doc.contents == null) {
+      // An empty document (or only comments): a way to start it, not a `null` field
+      this.root.appendChild(this.renderEmpty(schemaAt(ctx.schema, [])))
+    } else if (isCollection(value)) {
       this.root.appendChild(this.renderChildren(value, [], schemaAt(ctx.schema, [])))
     } else {
       this.root.appendChild(this.renderEntry(null, value, [], schemaAt(ctx.schema, []), false))
@@ -124,12 +127,30 @@ export class TreeMode {
     return list
   }
 
+  /** An empty document: start a map (keys) or, when the schema wants one, a list. */
+  private renderEmpty(schema: JsonSchema | undefined): HTMLElement {
+    const list = el('div', 'vye-children', { role: 'group' })
+    list.appendChild(el('div', 'vye-empty', {}, this.ctx.labels.empty))
+    if (this.ctx.readOnly) return list
+    const types = typesOf(schema)
+    if (!types.length || types.includes('object')) list.appendChild(this.renderAddKey({}, [], schema))
+    if (!types.length || types.includes('array')) {
+      const add = el('button', 'vye-add', { type: 'button', 'data-role': 'add' }, `+ ${this.ctx.labels.addItem}`)
+      add.addEventListener('click', () => this.ctx.edit((t) => addItem(t, [], defaultFor(schema?.items, this.ctx.schema))))
+      list.appendChild(el('div', 'vye-add-row', { 'data-path': '' })).appendChild(add)
+    }
+    return list
+  }
+
   /** The schema's missing properties as buttons, and a free key field when other keys are allowed. */
   private renderAddKey(value: Record<string, unknown>, path: YamlPath, schema: JsonSchema | undefined): HTMLElement {
     const row = el('div', 'vye-add-row', { 'data-path': pathKey(path) })
     for (const [key, prop] of Object.entries(schema?.properties ?? {})) {
       if (key in value) continue
-      const btn = el('button', 'vye-add', { type: 'button', 'data-role': `add:${key}` }, `+ ${this.ctx.translate(prop.title ?? key)}`)
+      // tree: the key itself, its title on hover; form: the title
+      const title = this.ctx.translate(prop.title ?? key)
+      const technical = this.ctx.variant === 'tree'
+      const btn = el('button', 'vye-add', { type: 'button', 'data-role': `add:${key}`, title: technical && title !== key ? title : undefined }, `+ ${technical ? key : title}`)
       btn.addEventListener('click', () => this.ctx.edit((t) => addKey(t, path, key, defaultFor(prop, this.ctx.schema))))
       row.appendChild(btn)
     }

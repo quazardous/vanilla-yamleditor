@@ -545,7 +545,8 @@
 }
 
 .vye-view-tree .vye-add-row:hover,
-.vye-view-tree .vye-add-row:focus-within {
+.vye-view-tree .vye-add-row:focus-within,
+.vye-view-tree > .vye-children > .vye-add-row {
   opacity: 1;
 }
 

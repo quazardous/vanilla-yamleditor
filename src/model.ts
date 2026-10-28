@@ -266,7 +266,8 @@ function replaceRoot(text: string, doc: Document, value: unknown): string {
   const style = detectStyle(text, doc)
   const out = new Document(value).toString(stringifyOptions(style))
   const node = doc.contents as Node | null
-  if (!node?.range) return out
+  // An empty document: keep what it has (comments, a `---`), the value after it
+  if (!node?.range) return text.trim() ? text + (text.endsWith('\n') ? '' : '\n') + out : out
   return text.slice(0, node.range[0]) + out.replace(/\n$/, '') + text.slice(node.range[1])
 }
 
