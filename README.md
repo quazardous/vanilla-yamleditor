@@ -11,7 +11,7 @@ A YAML editor for the browser, without a framework. It has three modes:
 Both the tree and the form take their controls from a JSON Schema when you give one. Their edits **keep the file as it was written**: comments, blank lines, key order, quoting and indentation. Each edit patches only the text of the value it changes, so a configuration file reviewed in git shows a one-line diff for a one-field change.
 
 ```sh
-npm install https://github.com/quazardous/vanilla-yamleditor/releases/download/v0.2.1/quazardous-vanilla-yamleditor-0.2.1.tgz
+npm install https://github.com/quazardous/vanilla-yamleditor/releases/download/v0.3.0/quazardous-vanilla-yamleditor-0.3.0.tgz
 ```
 
 Each [GitHub Release](https://github.com/quazardous/vanilla-yamleditor/releases) carries the package tarball, built and ready.

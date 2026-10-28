@@ -1,6 +1,6 @@
 {
   "name": "@quazardous/vanilla-yamleditor",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "A framework-free YAML editor with a text mode and a tree/form mode that keeps comments, key order and formatting",
   "type": "module",
   "license": "MIT",
