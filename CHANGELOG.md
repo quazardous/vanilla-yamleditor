@@ -1,5 +1,11 @@
 # @quazardous/vanilla-yamleditor
 
+## 0.2.1
+
+### Patch Changes
+
+- 938900f: An empty document (or one with only comments) no longer shows a `null` field in the tree and form modes: it shows `(empty)` with a key to add and an item to add, as its schema allows. Adding to a document that holds only comments keeps them. In the tree mode, the buttons that add a schema's properties name the keys (the title on hover).
+
 ## 0.2.0
 
 ### Minor Changes
