@@ -176,6 +176,12 @@ describe('tree mode', () => {
     expect(row(target, 'stores.paris').querySelector('[data-role="add:note"]')!.textContent).toBe('+ note')
   })
 
+  it('a multi-line value: its row is aligned on top', () => {
+    const { target } = mount({ mode: 'tree', schema: undefined, content: 'note: |\n  a\n  b\nn: 1\n' })
+    expect(row(target, 'note').querySelector('.vye-entry-head')!.classList.contains('vye-entry-head-multiline')).toBe(true)
+    expect(row(target, 'n').querySelector('.vye-entry-head')!.classList.contains('vye-entry-head-multiline')).toBe(false)
+  })
+
   it('edits in place, through the same patches', () => {
     const { target, editor } = mount({ mode: 'tree', schema: undefined, content: 'a: 1 # one\nlist: [x, y]\n' })
     expect(row(target, 'list').querySelector('.vye-count')!.textContent).toBe('[2]')

@@ -252,7 +252,9 @@ export class TreeMode {
       const summary = technical ? (Array.isArray(value) ? `[${count}]` : `{${count}}`) : labels.count(count)
       head.appendChild(el('span', 'vye-count', { title: technical ? labels.count(count) : undefined }, summary))
     } else {
-      head.appendChild(this.renderControl(value, path, schema))
+      const control = head.appendChild(this.renderControl(value, path, schema))
+      // A multi-line value: the key on its first line, not in the middle
+      if (control instanceof HTMLTextAreaElement) head.classList.add('vye-entry-head-multiline')
     }
 
     if (removable) {

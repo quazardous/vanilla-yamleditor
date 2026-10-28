@@ -745,3 +745,25 @@
 .vye.vye-diff .cm-deletedChunk del {
   text-decoration: none;
 }
+
+/* A textarea: the key and the colon on its first line */
+.vye-entry-head-multiline {
+  align-items: flex-start;
+}
+
+.vye-entry-head-multiline > .vye-key,
+.vye-entry-head-multiline > .vye-key-input,
+.vye-entry-head-multiline > .vye-toggle-space,
+.vye-entry-head-multiline > .vye-remove {
+  margin-top: calc(0.25rem + 1px);
+}
+
+.vye-view-tree .vye-entry-head-multiline > .vye-key,
+.vye-view-tree .vye-entry-head-multiline > .vye-colon,
+.vye-view-tree .vye-entry-head-multiline > .vye-key-input {
+  margin-top: 1px;
+}
+
+.vye-view-tree .vye-entry-head-multiline {
+  padding-top: 0.15rem;
+}
