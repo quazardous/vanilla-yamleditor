@@ -35,5 +35,6 @@ const editor = createYamlEditor({
 - [Diff](docs/diff.md): compare two YAML texts, the keys that changed
 - [Scripting](docs/scripting.md): edit a YAML file from code, comments kept
 - [Theming](docs/theming.md): CSS variables, dark theme
+- [Advanced: linked views](docs/linked-views.md): the text, tree and form of one document, in elements of your own
 
 [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md) · MIT

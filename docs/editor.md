@@ -1,4 +1,4 @@
-[README](../README.md) · [Editor](editor.md) · [Schema](schema.md) · [Diff](diff.md) · [Scripting](scripting.md) · [Theming](theming.md)
+[README](../README.md) · [Editor](editor.md) · [Schema](schema.md) · [Diff](diff.md) · [Scripting](scripting.md) · [Theming](theming.md) · [Linked views](linked-views.md)
 
 # The editor
 
@@ -27,6 +27,8 @@ The API follows [vanilla-jsoneditor](https://github.com/josdejong/svelte-jsonedi
 - **form**: the document as a form, with a labelled control per value (checkbox, select, number with bounds, text), the schema's titles and help.
 
 Both the tree and the form take their controls from a JSON Schema when you give one: labelled choices, variants, read-only and deprecated fields (see [Schema](schema.md)). Their edits **keep the file as it was written**: comments, blank lines, key order, quoting and indentation. Each edit patches only the text of the value it changes, so a configuration file reviewed in git shows a one-line diff for a one-field change.
+
+For several views of the same document at once, in elements of your own, see [Advanced: linked views](linked-views.md).
 
 ## Props
 

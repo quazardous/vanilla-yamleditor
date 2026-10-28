@@ -10,6 +10,13 @@
  *
  * const editor = createYamlEditor({ target, props: { content, schema, onChange } })
  *
+ * Advanced: a document and views mounted anywhere, all in step
+ * (docs/linked-views.md):
+ *
+ * const doc = createYamlDocument({ content, schema })
+ * mountTextView(doc, left)
+ * mountFormView(doc, right)
+ *
  * The diff view has its own entry, so that the editor does not bring
  * @codemirror/merge along:
  *
@@ -24,6 +31,27 @@ export {
   type YamlEditorProps,
   type YamlEditorStatus,
 } from './editor'
+export {
+  createYamlDocument,
+  defaultDocumentLabels,
+  type YamlChangeKind,
+  type YamlDocument,
+  type YamlDocumentChange,
+  type YamlDocumentLabels,
+  type YamlDocumentProps,
+  type YamlStatus,
+} from './document'
+export {
+  defaultViewLabels,
+  mountFormView,
+  mountTextView,
+  mountTreeView,
+  type YamlTextView,
+  type YamlTreeView,
+  type YamlView,
+  type YamlViewLabels,
+  type YamlViewOptions,
+} from './views'
 export {
   addItem,
   changedPaths,

@@ -768,3 +768,13 @@
 .vye-view-tree .vye-entry-head-multiline {
   padding-top: 0.15rem;
 }
+
+/* A tree or form view while the text does not parse */
+.vye-unparsable {
+  padding: 1rem 0.75rem;
+  color: var(--vye-error);
+}
+
+.vye-unparsable[hidden] {
+  display: none;
+}

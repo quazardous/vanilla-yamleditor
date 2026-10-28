@@ -1,18 +1,21 @@
 /**
  * createYamlEditor: three modes around one text.
  *
- * The text is the single source of truth. The text mode edits it directly;
- * the tree and form modes edit it through model.ts patches. Switching to them
- * is refused while the text has syntax errors, which then show at their line.
+ * A YamlDocument (document.ts), a bar (the mode buttons and a status) and two
+ * views (views.ts): the text, and the tree / form. The text is the single
+ * source of truth: the text view edits it directly, the tree and form views
+ * through model.ts patches. Switching to them is refused while the text has
+ * syntax errors, which then show at their line. `editor.document` takes more
+ * views, mounted anywhere (docs/linked-views.md).
  */
-import { YamlEditError, cssPath, lintYaml, locate, parseYaml, pathKey, rangeAt, toPath, type ParsedYaml, type YamlLint, type YamlPath, type YamlSyntaxError } from './model'
-import { defaultSchemaMessages, validate, type JsonSchema, type SchemaMessages, type YamlProblem, type YamlProblemInput } from './schema'
-import { TextMode, type TextMarker } from './text-mode'
-import { TreeMode, type TreeLabels, type TreeProblem } from './tree-mode'
+import { createYamlDocument, defaultDocumentLabels, type YamlDocument, type YamlDocumentLabels, type YamlStatus } from './document'
+import type { ParsedYaml, YamlPath } from './model'
+import type { JsonSchema, SchemaMessages, YamlProblemInput } from './schema'
+import { defaultViewLabels, mountTextView, mountTreeView, type YamlViewLabels } from './views'
 
 export type YamlEditorMode = 'text' | 'tree' | 'form'
 
-export interface YamlEditorLabels extends TreeLabels {
+export interface YamlEditorLabels extends YamlViewLabels, YamlDocumentLabels {
   text: string
   tree: string
   form: string
@@ -20,9 +23,6 @@ export interface YamlEditorLabels extends TreeLabels {
   syntaxBlocked: string
   syntaxErrors: (n: number) => string
   warnings: (n: number) => string
-  /** `truc ::` is the key `truc :`. */
-  colonKey: (key: string, suggestion: string) => string
-  spacedKey: (key: string) => string
 }
 
 export const defaultLabels: YamlEditorLabels = {
@@ -33,25 +33,11 @@ export const defaultLabels: YamlEditorLabels = {
   syntaxBlocked: 'Fix the syntax errors before switching to the tree or form view',
   syntaxErrors: (n) => (n === 1 ? '1 syntax error' : `${n} syntax errors`),
   warnings: (n) => (n === 1 ? '1 warning' : `${n} warnings`),
-  colonKey: (key, suggestion) => `The key is "${key}": did you mean "${suggestion}:"?`,
-  spacedKey: (key) => `The key "${key}" starts or ends with a space`,
-  addItem: 'Add item',
-  addKey: 'Add',
-  newKey: 'new key',
-  remove: 'Remove',
-  rename: 'Key name',
-  empty: '(empty)',
-  alias: 'An alias: edit it in the text view',
-  count: (n) => (n === 1 ? '1 entry' : `${n} entries`),
+  ...defaultDocumentLabels,
+  ...defaultViewLabels,
 }
 
-export interface YamlEditorStatus {
-  /** The plain value; undefined while there are syntax errors. */
-  value: unknown
-  syntaxErrors: YamlSyntaxError[]
-  /** Schema, validator and external problems together. */
-  problems: YamlProblem[]
-}
+export type YamlEditorStatus = YamlStatus
 
 export interface YamlEditorProps {
   /** The YAML text. */
@@ -87,6 +73,8 @@ export interface YamlEditorProps {
 }
 
 export interface YamlEditor {
+  /** The editor's document: mount more views on it, anywhere (docs/linked-views.md). */
+  readonly document: YamlDocument
   get(): string
   /** Replace the content; undo starts over. */
   set(content: string): void
@@ -110,11 +98,7 @@ export interface YamlEditor {
 export function createYamlEditor({ target, props = {} }: { target: HTMLElement; props?: YamlEditorProps }): YamlEditor {
   let p: YamlEditorProps = { ...props }
   let labels: YamlEditorLabels = { ...defaultLabels, ...p.labels }
-  let text = p.content ?? ''
-  let parsed = parseYaml(text)
-  let problems: YamlProblem[] = []
-  /** The warnings of lintYaml, first in `problems`, marked at their own span. */
-  let lints: YamlLint[] = []
+  const doc = createYamlDocument(documentProps(p))
   const ALL_MODES: YamlEditorMode[] = ['text', 'tree', 'form']
   /** The modes offered: `modes` as given (known ones, once each), else all. */
   const allowed = (): YamlEditorMode[] => {
@@ -127,8 +111,9 @@ export function createYamlEditor({ target, props = {} }: { target: HTMLElement; 
     const order: YamlEditorMode[] = p.schema ? ['form', 'tree', 'text'] : ['tree', 'form', 'text']
     return order.find((m) => offered.includes(m))!
   }
+  const broken = () => doc.parsed().errors.length > 0
   let mode: YamlEditorMode = p.mode && allowed().includes(p.mode) ? p.mode : defaultMode()
-  if (parsed.errors.length) mode = 'text'
+  if (broken()) mode = 'text'
 
   const root = document.createElement('div')
   root.className = 'vye'
@@ -144,11 +129,6 @@ export function createYamlEditor({ target, props = {} }: { target: HTMLElement; 
   menu.append(modes, status)
   const body = document.createElement('div')
   body.className = 'vye-body'
-  const textHost = document.createElement('div')
-  textHost.className = 'vye-text'
-  const treeHost = document.createElement('div')
-  treeHost.className = 'vye-tree-host'
-  body.append(textHost, treeHost)
   root.append(menu, body)
   target.appendChild(root)
 
@@ -163,45 +143,9 @@ export function createYamlEditor({ target, props = {} }: { target: HTMLElement; 
     modes.appendChild(tab)
   }
 
-  const textMode = new TextMode({
-    parent: textHost,
-    text,
-    readOnly: !!p.readOnly,
-    onChange: (next) => {
-      text = next
-      refresh(true)
-    },
-  })
-  const treeMode = new TreeMode(treeHost)
-
-  function computeProblems(): YamlProblem[] {
-    // Paths from a validator or a server may come as strings
-    const outside = (list: YamlProblemInput[] | undefined): YamlProblem[] => (list ?? []).map((pb) => ({ ...pb, path: toPath(pb.path) }))
-    lints = []
-    if (parsed.errors.length) return outside(p.problems)
-    const out: YamlProblem[] = []
-    if (p.lint !== false) {
-      lints = lintYaml(parsed.doc)
-      for (const lint of lints) {
-        const message = lint.kind === 'colonKey' ? labels.colonKey(lint.key, lint.suggestion!) : labels.spacedKey(lint.key)
-        out.push({ path: lint.path, message, severity: 'warning' })
-      }
-    }
-    if (p.schema) out.push(...validate(parsed.value, p.schema, { ...defaultSchemaMessages, ...p.schemaMessages }))
-    if (p.validator) {
-      try {
-        out.push(...outside(p.validator(parsed.value, parsed)))
-      } catch (err) {
-        ;(p.onError ?? console.warn)(err as Error)
-      }
-    }
-    out.push(...outside(p.problems))
-    return out
-  }
-
-  function currentStatus(): YamlEditorStatus {
-    return { value: parsed.value, syntaxErrors: parsed.errors, problems }
-  }
+  // The two views, inside the editor's own frame
+  const textView = mountTextView(doc, body, { readOnly: !!p.readOnly, labels, frame: false })
+  const treeView = mountTreeView(doc, body, { readOnly: !!p.readOnly, labels, frame: false, variant: mode === 'form' ? 'form' : 'tree' })
 
   function renderChrome() {
     root.classList.toggle('vye-readonly', !!p.readOnly)
@@ -217,149 +161,104 @@ export function createYamlEditor({ target, props = {} }: { target: HTMLElement; 
       tabs[m].setAttribute('aria-selected', String(mode === m))
       tabs[m].classList.toggle('vye-tab-active', mode === m)
     }
+    const parsed = doc.parsed()
     const blocked = parsed.errors.length > 0
     for (const m of ['tree', 'form'] as const) {
       tabs[m].setAttribute('aria-disabled', String(blocked))
       tabs[m].title = blocked ? labels.syntaxBlocked : ''
     }
-    const warnings = blocked ? 0 : problems.filter((pb) => pb.severity === 'warning').length
+    const warnings = blocked ? 0 : doc.status().problems.filter((pb) => pb.severity === 'warning').length
     status.textContent = blocked ? labels.syntaxErrors(parsed.errors.length) : warnings ? labels.warnings(warnings) : ''
     status.classList.toggle('vye-status-error', blocked)
     status.classList.toggle('vye-status-warning', !blocked && warnings > 0)
-    textHost.hidden = mode !== 'text'
-    treeHost.hidden = mode === 'text'
-  }
-
-  function renderMarkers() {
-    const markers: TextMarker[] = parsed.errors.map((e) => ({ from: e.from, to: e.to, message: e.message, severity: 'error' }))
-    if (!parsed.errors.length) {
-      // A suspicious key: underline the key itself
-      lints.forEach((lint, i) => markers.push({ from: lint.from, to: lint.to, message: problems[i].message, severity: 'warning' }))
-      for (const problem of problems.slice(lints.length)) {
-        const range = rangeAt(parsed.doc, problem.path)
-        markers.push({ from: range?.from ?? 0, to: range?.to ?? 0, message: problem.message, severity: problem.severity ?? 'error' })
-      }
-    }
-    textMode.setMarkers(markers)
-  }
-
-  function renderTree() {
-    if (mode === 'text' || parsed.errors.length) return
-    // A problem on a missing entry shows on its deepest existing parent, naming what is missing
-    const byPath = new Map<string, TreeProblem[]>()
-    for (const problem of problems) {
-      let depth = problem.path.length
-      while (depth > 0 && !locate(parsed.doc, problem.path.slice(0, depth))) depth--
-      const key = pathKey(problem.path.slice(0, depth))
-      const missing = problem.path.slice(depth)
-      const message = missing.length ? `${pathKey(missing)}: ${problem.message}` : problem.message
-      byPath.set(key, [...(byPath.get(key) ?? []), { message, severity: problem.severity ?? 'error' }])
-    }
-    treeMode.render({
-      variant: mode,
-      parsed,
-      schema: p.schema,
-      problems: byPath,
-      readOnly: !!p.readOnly,
-      labels,
-      translate: p.translate ?? ((s) => s),
-      edit: (change) => {
-        let next: string
-        try {
-          next = change(text)
-        } catch (err) {
-          if (err instanceof YamlEditError) return (p.onError ?? console.warn)(err)
-          throw err
-        }
-        if (next === text) return
-        text = next
-        textMode.setText(next)
-        refresh(true)
-      },
-    })
+    textView.element.hidden = mode !== 'text'
+    treeView.element.hidden = mode === 'text'
   }
 
   /** Show another view and tell (no checks: see setMode). */
   function switchTo(next: YamlEditorMode) {
     if (next === mode) return
     mode = next
-    renderChrome()
-    renderTree()
+    showMode()
     p.onChangeMode?.(mode)
   }
 
-  /** After the text changed: parse, check, redraw, tell. */
-  function refresh(notify: boolean) {
-    parsed = parseYaml(text)
-    problems = computeProblems()
-    // A text that does not parse shows as text, the only way to fix it; once it
-    // parses, back to an offered view if the text view is not one
-    if (parsed.errors.length && mode !== 'text') switchTo('text')
-    else if (!parsed.errors.length && !allowed().includes(mode)) switchTo(defaultMode())
+  /** The views for the current mode: the tree view draws only while shown. */
+  function showMode() {
+    if (mode !== 'text') treeView.setVariant(mode)
+    treeView.setActive(mode !== 'text')
     renderChrome()
-    renderMarkers()
-    renderTree()
-    if (notify) p.onChange?.(text, currentStatus())
   }
 
+  // After every change: a text that does not parse shows as text, the only way
+  // to fix it; once it parses, back to an offered view if the text view is not one
+  doc.subscribe(() => {
+    if (broken() && mode !== 'text') switchTo('text')
+    else if (!broken() && !allowed().includes(mode)) switchTo(defaultMode())
+    else renderChrome()
+  })
+
   const api: YamlEditor = {
-    get: () => text,
-    set(content) {
-      text = content
-      textMode.setText(content, true)
-      refresh(false)
-    },
-    update(content) {
-      text = content
-      textMode.setText(content)
-      refresh(false)
-    },
+    document: doc,
+    get: () => doc.get(),
+    set: (content) => doc.set(content),
+    update: (content) => doc.update(content),
     updateProps(next) {
       const before = p
       p = { ...p, ...next }
       labels = { ...defaultLabels, ...p.labels }
-      if (next.readOnly !== undefined && next.readOnly !== before.readOnly) textMode.setReadOnly(!!p.readOnly)
-      if (next.content !== undefined && next.content !== text) return api.update(next.content)
+      if (next.readOnly !== undefined && next.readOnly !== before.readOnly) {
+        textView.setReadOnly(!!p.readOnly)
+        treeView.setReadOnly(!!p.readOnly)
+      }
+      if (next.labels) {
+        textView.setLabels(labels)
+        treeView.setLabels(labels)
+      }
       if (next.mode && next.mode !== mode) api.setMode(next.mode)
-      // The current view no longer offered: the default one (refresh does it, or keeps the text while it does not parse)
-      refresh(false)
+      // The document reads again, and its subscriber above fixes the view (one no longer offered, a broken text)
+      doc.updateProps(documentProps(p, next))
     },
     getMode: () => mode,
     setMode(next) {
       if (next === mode) return true
       if (!allowed().includes(next)) return false
-      if (next !== 'text' && parsed.errors.length) {
+      if (next !== 'text' && broken()) {
         status.textContent = labels.syntaxBlocked
-        textMode.reveal(parsed.errors[0].from)
+        textView.reveal(doc.parsed().errors[0].from)
         return false
       }
       switchTo(next)
       return true
     },
     getModes: () => [...allowed()],
-    canSetMode: (next) => allowed().includes(next) && (next === 'text' || !parsed.errors.length),
-    status: currentStatus,
+    canSetMode: (next) => allowed().includes(next) && (next === 'text' || !broken()),
+    status: () => doc.status(),
     revealPath(path) {
-      if (mode === 'text' || parsed.errors.length) {
-        const range = rangeAt(parsed.doc, path)
-        if (range) textMode.reveal(range.from)
-        return
-      }
-      const row = treeHost.querySelector<HTMLElement>(`[data-path="${cssPath(pathKey(path))}"]`)
-      row?.scrollIntoView({ block: 'nearest' })
-      row?.querySelector<HTMLElement>('input, select, textarea, button')?.focus()
+      if (mode === 'text' || broken()) textView.revealPath(path)
+      else treeView.revealPath(path)
     },
     focus() {
-      if (mode === 'text') textMode.focus()
-      else treeHost.querySelector<HTMLElement>('input, select, textarea, button')?.focus()
+      if (mode === 'text') textView.focus()
+      else treeView.focus()
     },
     destroy() {
-      textMode.destroy()
-      treeMode.destroy()
+      textView.destroy()
+      treeView.destroy()
+      doc.destroy()
       root.remove()
     },
   }
 
-  refresh(false)
+  showMode()
   return api
+}
+
+/** The editor's props that belong to its document; `next`: only those given. */
+function documentProps(p: YamlEditorProps, next: Partial<YamlEditorProps> = p) {
+  const keys = ['content', 'schema', 'validator', 'problems', 'lint', 'schemaMessages', 'translate', 'onChange', 'onError'] as const
+  const out: Record<string, unknown> = {}
+  for (const key of keys) if (key in next) out[key] = p[key]
+  if ('labels' in next || next === p) out.labels = { ...defaultLabels, ...p.labels }
+  return out
 }
