@@ -4,7 +4,7 @@
 
 A YAML editor for the browser, without a framework: **text**, **tree** and **form** views on one document, and every edit **keeps the file as written** (comments, key order, layout), so a one-field change is a one-line diff.
 
-[![The demo: the same document as a tree and as a form](https://raw.githubusercontent.com/quazardous/vanilla-yamleditor/main/docs/screenshot.png)](https://yamleditor.davidberlioz.net)
+[![The demo: the same document as a tree and as text](https://raw.githubusercontent.com/quazardous/vanilla-yamleditor/main/docs/screenshot.png)](https://yamleditor.davidberlioz.net)
 
 ## Quick start
 
