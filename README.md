@@ -9,7 +9,7 @@ A YAML editor for the browser, without a framework: **text**, **tree** and **for
 ## Quick start
 
 ```sh
-npm install https://github.com/quazardous/vanilla-yamleditor/releases/download/v0.7.0/quazardous-vanilla-yamleditor-0.7.0.tgz
+npm install https://github.com/quazardous/vanilla-yamleditor/releases/download/v0.8.0/quazardous-vanilla-yamleditor-0.8.0.tgz
 ```
 
 Each [GitHub Release](https://github.com/quazardous/vanilla-yamleditor/releases) carries the package tarball, built and ready.
