@@ -1,5 +1,6 @@
 # <img src="https://raw.githubusercontent.com/quazardous/vanilla-yamleditor/main/docs/logo.svg" alt="" width="40" align="center"> vanilla-yamleditor
 
+[![npm](https://img.shields.io/npm/v/@quazardous/vanilla-yamleditor?color=cb3837&logo=npm)](https://www.npmjs.com/package/@quazardous/vanilla-yamleditor)
 [![demo](https://img.shields.io/badge/demo-yamleditor.davidberlioz.net-3b82f6)](https://yamleditor.davidberlioz.net)
 
 A YAML editor for the browser, without a framework: **text**, **tree** and **form** views on one document, and every edit **keeps the file as written** (comments, key order, layout), so a one-field change is a one-line diff.
@@ -9,10 +10,8 @@ A YAML editor for the browser, without a framework: **text**, **tree** and **for
 ## Quick start
 
 ```sh
-npm install https://github.com/quazardous/vanilla-yamleditor/releases/download/v0.8.0/quazardous-vanilla-yamleditor-0.8.0.tgz
+npm install @quazardous/vanilla-yamleditor
 ```
-
-Each [GitHub Release](https://github.com/quazardous/vanilla-yamleditor/releases) carries the package tarball, built and ready.
 
 ```js
 import { createYamlEditor } from '@quazardous/vanilla-yamleditor'

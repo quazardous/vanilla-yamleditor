@@ -10,8 +10,8 @@ concurrency:
 
 # Versioning is local (npx changeset version, then a commit). A push whose
 # version has no v<version> tag yet is a release: the npm pack tarball goes on
-# a GitHub Release, the source consumers install from. npm publish is tried
-# too, and allowed to fail while the npm account cannot publish.
+# a GitHub Release, and npm publish (OIDC Trusted Publishing, set on npmjs.com
+# for this repo and release.yml), still allowed to fail until it has run once.
 #
 # id-token: npm Trusted Publishers (OIDC) and provenance, no NPM_TOKEN secret.
 permissions:
@@ -61,7 +61,7 @@ jobs:
           url="https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/${tarball}"
           {
             awk -v v="## ${VERSION}" '$0 == v {on=1; next} /^## / && on {exit} on' CHANGELOG.md 2>/dev/null
-            printf '\nInstall from the attached tarball:\n\n```sh\nnpm install %s\n```\n' "$url"
+            printf '\nInstall from npm, or from the attached tarball:\n\n```sh\nnpm install @quazardous/vanilla-yamleditor@%s\nnpm install %s\n```\n' "$VERSION" "$url"
           } > notes.md
           git tag "v${VERSION}"
           git push origin "v${VERSION}"
